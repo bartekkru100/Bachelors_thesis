@@ -1,7 +1,6 @@
 % Author: Bartosz Kruszona
 import State.*
 
-
 clc, clear
 
 % Constraints
@@ -19,7 +18,7 @@ pressure_at = oneatm;
 
 % Initial Injection
 prop = Solution('R1highT.yaml');
-%prop = GRI30;
+%prop = GRI30;  
 s_injection = State(prop);
 s_injection.pressure = 300e5;
 s_injection.temperature = 293;
