@@ -7,24 +7,28 @@ clc, clear
 geometry_defined = false;
 expansion_ratio = 80;
 contraction_ratio = 5;
-heat_power = 0;
-thrust = 1.81e6;
+heat_power_area = 0;
+thrust = 1;
 
 % Atmospheric conditions
 atmo = GRI30;
 temperature_at = 293;
-pressure_at = oneatm;
+pressure_at = 0.1;
 
 
 % Initial Injection
 prop = Solution('R1highT.yaml');
 %prop = GRI30;  
+%set(prop, 'Y', 'H2:1,O2:6.03');
+set(prop, 'Y', 'CH4:1,O2:3.6');
+%set(prop, 'X', 'N2:1');
+%set(prop, 'Y', 'POSF7688:1,O2:2.72');
 s_injection = State(prop);
 s_injection.pressure = 300e5;
 s_injection.temperature = 293;
-Injection(prop, s_injection.temperature, s_injection.pressure);
+injection(prop, s_injection);
 % Initial Combustion
-Combustion(prop, heat_power);
+combustion(prop);
 s_chamber = State(prop);
 
 
@@ -59,8 +63,8 @@ for i = 1 : 20
     mass_rate_area = s_throat.velocity * s_throat.density;
     error_M = (mass_rate_area_old - mass_rate_area) / mass_rate_area_old;
     if abs(error_M) > 1e-6
-        Injection(prop, s_injection.temperature, s_injection.pressure);
-        Combustion(prop, heat_power, mass_rate_area);
+        injection(prop, s_injection);
+        combustion(prop, heat_power_area, mass_rate_area);
         s_chamber = State(prop);
         s_chamber.velocity = mass_rate_area / (contraction_ratio * s_chamber.density);
         s_stagnation.enthalpy = s_chamber.enthalpy - s_chamber.velocity ^ 2 / 2;
@@ -102,29 +106,13 @@ for i = 1 : 30
         end
     end
 end
-specific_impulse = (s_exit.velocity + (s_exit.pressure - pressure_at) * expansion_ratio / mass_rate_area)% / 9.81
+specific_impulse = (s_exit.velocity + (s_exit.pressure - pressure_at) * expansion_ratio / mass_rate_area) / 9.81
+mass_rate = thrust / specific_impulse;
+A_th = mass_rate / mass_rate_area;
+D_th = d_circle(A_th)
+heat_power = heat_power_area * A_th;
 
 % Functions:
-
-% Injection
-% Cantera sets the injection composition, pressure and temperature
-function Injection(prop, temperature_in, pressure_in)
-%set(prop, 'Y', 'H2:1,O2:6.03', 'P', pressure_in, 'T', temperature_in);
-set(prop, 'X', 'CH4:280,O2:510', 'P', pressure_in, 'T', temperature_in);
-%set(prop, 'Y', 'POSF7688:1,O2:2.72', 'P', pressure_in, 'T', temperature_in);
-end
-
-% Combustion
-% Cantera solves for chemical equilibrium
-% For non-chemical engines, the heat is added to the gas at constant
-% pressure
-function Combustion(prop, heat_power, mass_rate_area)
-if nargin == 3
-    temperature_delta = heat_power / mass_rate_area * cp_mass(prop);
-    setTemperature(prop, temperature(prop) + temperature_delta);
-end
-equilibrate(prop, 'HP');
-end
 
 
 % Calculates an area of a circle

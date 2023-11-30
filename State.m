@@ -92,7 +92,7 @@ classdef State
 
         % Copies the values of either State or Solution "state" into a
         % Solution "gas"
-        function setGasState(gas, state)
+        function setgasstate(gas, state)
             import State.*
             if class(gas) == "Solution"
                 if class(state) == "State"
