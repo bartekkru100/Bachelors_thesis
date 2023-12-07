@@ -3,6 +3,7 @@
 % Injection
 % Cantera sets the injection composition, pressure and temperature
 function injection(prop, state)
+import Gas.*
 import State.*
-setgasstate(prop, state);
+setState(prop, state);
 end

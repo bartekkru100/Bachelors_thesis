@@ -7,20 +7,16 @@ import State.*
 clc, clear, cleanup
 
 %graphite = Solution('graphite.yaml');
-water = Solution('WaterNASA.yaml', 'Water');
-set(water, 'Y', 'H2O(L):1', 'T', 400, 'P', oneatm);
-ice = Solution('WaterNASA.yaml', 'Ice');
-set(ice, 'Y', 'H2O(S):1', 'T', 400, 'P', oneatm);
-equilibrate(water, 'HP');
+water = Solution('WaterNASA.yaml')
+set(water, 'Y', 'H2O(L)')
 
 %equilibrate(water, 'TP')
 gas = Solution('R1highT.yaml');
-graphite = Solution('graphite.yaml');
-set(gas, 'Y', 'O2:1');
+set(gas, 'Y', 'CH4:1,O2:0.11');
 
-Mix = Mixture({gas, 1; graphite, 3});
-%Mix = Mixture({gas, 1; water, 0.0001});
-equilibrate(Mix, 'HP')
+%Mix = Mixture({gas, 1; graphite, 0.0001});
+Mix = Mixture({gas, 1; water, 0.0001});
+%equilibrate(Mix, 'HP')
 
 
 
