@@ -23,6 +23,7 @@ classdef State
         totEnergy;
         Mach;
         R_specific;
+        massFlowFlux;
 
     end
     methods (Access = public)
@@ -52,6 +53,7 @@ classdef State
                 state.totEnergy = 0;
                 state.Mach = 0;
                 state.R_specific = 0;
+                state.massFlowFlux = 0;
 
             % Path for a State class input
             elseif ismember(class(gas), ["Gas", "State"])
@@ -73,6 +75,7 @@ classdef State
                 state.totEnergy = gas.totEnergy;
                 state.Mach = gas.Mach;
                 state.R_specific = gas.R_specific;
+                state.massFlowFlux = gas.massFlowFlux;
             end
         end
     end

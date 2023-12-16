@@ -11,6 +11,7 @@ classdef Gas < handle
     properties (Access = private)
         source;
         vel;
+        is_massFlowDimenstionless;
     end
 
     methods (Access = public)
@@ -114,12 +115,19 @@ classdef Gas < handle
 
         function value = R_specific(gas)
             import Gas.*
-            value = R_universal / meanMolecularWeight(gas.solution);;
+            value = R_universal / meanMolecularWeight(gas.solution);
+        end
+
+        function value = massFlowFlux(gas)
+            import Gas.*
+            value = gas.vel * density(gas.solution);
         end
 
         function s_stagnation = stagnation(gas)
             import Gas.*
-            s_stagnation = State(setVelocityIsentropic(gas, 0));
+            state_1 = State(gas);
+            s_stagnation = State(setvelocityisentropic(gas, 0));
+            setstate(gas, state_1);
         end
     end
 
@@ -129,7 +137,7 @@ classdef Gas < handle
             R_universal = 8314.46261815324;
         end
 
-        function gas = setState(gas, property1, value1, property2, value2, property3, value3, property4, value4)
+        function gas = setstate(gas, property1, value1, property2, value2, property3, value3, property4, value4)
             import State.*
             import Gas.*
             if ismember(class(property1), ['Gas', 'State'])
@@ -183,11 +191,11 @@ classdef Gas < handle
             end
         end
 
-        function gas = setVelocityIsentropic(gas, newVelocity)
+        function gas = setvelocityisentropic(gas, newVelocity)
             import Gas.*
             import State.*
             newEnthalpy = gas.totEnergy - newVelocity ^ 2 / 2;
-            setEnthalpyIsentropic(gas, newEnthalpy);
+            setenthalpyisentropic(gas, newEnthalpy);
         end
 
         % Sets temperature, keeping entropy constant
@@ -196,41 +204,85 @@ classdef Gas < handle
         % estimation is inaccurate, because the specific heat ratio (k) changes with
         % temperature. Bisection method is used to find an intermediate k that
         % would keep the entropy constant.
-        function gas = setTemperatureIsentropic(gas, temperature_2)
+        function gas = settemperatureisentropic(gas, temperature_2)
             import Gas.*
-            state1 = State(gas);
-            state2 = State(gas);
-            state2.pressure = state1.pressure * (temperature_2 / state1.temperature) ^ (state1.k / (state1.k - 1)); % Initial pressure estimate
-            set(gas.solution, 'T', temperature_2, 'P', state2.pressure);
-            state2 = State(gas);
 
-            % While k generally drops with temperature, I used weighed average to
-            % calculate k, the weights being the variable in the bisection method to
-            % make convergence less likely to fail.
-            weight_max = 2;
-            weight_min = 0;
+            % Declaration of states.
+            state_1 = State(gas);
+            state_2 = State(gas);
+            state_2_old = state_2;
+
+            % Error declarations
+            Tolerance = 1e-12;
+            error_S = Tolerance * 10;
+            error_S_old = error_S;
+            error_S_abs = 0;
+
+            % Initial estimation of pressure after the process.
+
             n = 0;
-            while 1
-                n = n + 1;
-                if n > 100
-                    break;
-                end
-                weight = (weight_max + weight_min) / 2; % Bisection midpoint
-                k_12 = (state1.k * (2 - weight) + state2.k * (weight) ) / 2;
-                state2.pressure = state1.pressure * (temperature_2 / state1.temperature) ^ (k_12 / (k_12 - 1));
-                set(gas.solution, 'T', temperature_2, 'P', state2.pressure);
-                state2 = State(gas);
-                error_S = (state1.entropy - gas.entropy) / state1.entropy; % Checking for convergence
-                if abs(error_S) < 1e-6
-                    break;
-                end
-                if error_S < 0 % Range redefinition
-                    weight_min = weight;
+            while abs(error_S) > Tolerance
+                if abs(error_S_old / error_S) < 10
+                    n = n + 1;
+                    if n > 2
+                        break;
+                    end
                 else
-                    weight_max = weight;
+                    n = 0;
+                end
+                state_2_old = state_2; % Storing the state from the first estimation for later
+                error_S_old = error_S;
+
+                error_S_abs = error_S_abs + (state_1.entropy - gas.entropy);
+                state_2.pressure = state_1.pressure * ((temperature_2 / state_1.temperature) ^ (state_1.cp / state_1.R_specific) / ...
+                    exp(error_S_abs / state_1.R_specific));
+
+                set(gas.solution, 'T', temperature_2, 'P', state_2.pressure);
+                state_2 = State(gas);
+
+                error_S = (state_1.entropy - gas.entropy) / state_1.entropy; % Checking for convergence
+            end
+
+            % If the estimation was not within tolerance, false position
+            % method is used
+            if abs(error_S) > Tolerance
+                % Choosing the brackets based on the diference between
+                % previous estimations
+                error_P = state_2_old.pressure / state_2.pressure;
+
+                pressure_a = state_2.pressure * error_P;
+                set(gas.solution, 'T', temperature_2, 'P', pressure_a);
+                error_S_a = (state_1.entropy - gas.entropy) / state_1.entropy;
+
+                pressure_b = state_2.pressure / error_P;
+                set(gas.solution, 'T', temperature_2, 'P', pressure_b);
+                error_S_b = (state_1.entropy - gas.entropy) / state_1.entropy;
+
+                m = 0;
+                while 1
+                    m = m + 1;
+                    if m > 100
+                        disp("convergence failed")
+                        break;
+                    end
+                    state_2.pressure = (pressure_a * error_S_b - pressure_b * error_S_a) / (error_S_b - error_S_a);
+                    set(gas.solution, 'T', temperature_2, 'P', state_2.pressure);
+                    state_2 = State(gas);
+                    error_S = (state_1.entropy - gas.entropy) / state_1.entropy; % Checking for convergence
+                    if abs(error_S) < Tolerance
+                        break;
+                    end
+                    if sign(error_S) == sign(error_S_a) % Range redefinition
+                        pressure_a = state_2.pressure;
+                        error_S_a = error_S;
+                    else
+                        pressure_b = state_2.pressure;
+                        error_S_b = error_S;
+                    end
                 end
             end
-            gas.vel = sqrt(2 * (state1.totEnergy - gas.enthalpy));
+            % Velocity is updated using the new value of enthalpy.
+            gas.vel = sqrt(2 * (state_1.totEnergy - gas.enthalpy));
         end
 
         % Sets ethalpy, keeping entropy constant
@@ -238,38 +290,89 @@ classdef Gas < handle
         % estimates the value of temperature after the process using the relation:
         % dh = C_p * dT, then using a relation dh = dP / rho and bisection method
         % to find an intermediate density that would keep entropy constant.
-        function gas = setEnthalpyIsentropic(gas, enthalpy_2)
+
+        function gas = setenthalpyisentropic(gas, enthalpy_2)
             import Gas.*
-            import State.*
-            state1 = State(gas);
-            delta_enthalpy = enthalpy_2 - state1.enthalpy;
-            state2.temperature = state1.temperature() + delta_enthalpy / state1.cp; % dh = C_p * dT => T_2 ~= T_1 + delta_h / C_p
-            setTemperatureIsentropic(gas, state2.temperature);
-            state2 = State(gas);
-            weight_max = 2;
-            weight_min = 0;
+
+            % Declaration of states.
+            state_1 = State(gas);
+            state_2 = State(gas);
+            state_2_old = state_2;
+
+            % Error declarations
+            Tolerance = 1e-12;
+            error_H = Tolerance * 10;
+            error_H_old = error_H;
+            error_H_abs = 0;
+
+            % Initial estimation of pressure after the process.
+            delta_enthalpy = enthalpy_2 - state_1.enthalpy;
+            delta_enthalpy_calc = delta_enthalpy;
+
             n = 0;
-            while 1
-                n = n + 1;
-                if n > 100
-                    break;
-                end
-                weight = (weight_max + weight_min) / 2; % Bisection midpoint
-                density_12 = (state1.density * (2 - weight) + state2.density * (weight) ) / 2;
-                state2.pressure = state1.pressure + delta_enthalpy * density_12; % dh = dP / rho => P_2 ~= P_1 + delta_h * rho
-                set(gas.solution, 'H', enthalpy_2, 'P', state2.pressure);
-                state2 = State(gas);
-                error_S = (state1.entropy - state2.entropy) / state1.entropy; % Checking for convergence
-                if abs(error_S) < 1e-6
-                    break;
-                end
-                if error_S < 0 % Range redefinition
-                    weight_min = weight;
+            while abs(error_H) > Tolerance
+                if abs(error_H_old / error_H) < 2
+                    n = n + 1;
+                    if n > 3
+                        break;
+                    end
                 else
-                    weight_max = weight;
+                    n = 0;
+                end
+                state_2_old = state_2; % Storing the state from the first estimation for later
+                error_H_old = error_H;
+
+                error_H_abs = error_H_abs + (delta_enthalpy - delta_enthalpy_calc);
+                state_2.temperature = state_1.temperature + (delta_enthalpy + error_H_abs) / state_1.cp;
+                state_2.pressure = state_1.pressure * (state_2.temperature / state_1.temperature) ^ (state_1.k / (state_1.k - 1));
+
+                set(gas.solution, 'S', state_1.entropy, 'P', state_2.pressure);
+                state_2 = State(gas);
+                delta_enthalpy_calc = state_2.enthalpy - state_1.enthalpy;
+
+                error_H = (enthalpy_2 - state_2.enthalpy) / enthalpy_2;
+            end
+
+            % If the estimation was not within tolerance, false position
+            % method is used
+            if abs(error_H) > Tolerance
+                % Choosing the brackets based on the diference between
+                % previous estimations
+                error_P_abs = abs(state_2_old.pressure - state_2.pressure);
+
+                pressure_a = state_2.pressure + error_P_abs;
+                set(gas.solution, 'S', state_1.entropy, 'P', pressure_a);
+                error_H_a = (enthalpy_2 - gas.enthalpy) / enthalpy_2;
+
+                pressure_b = state_2.pressure - error_P_abs;
+                set(gas.solution, 'S', state_1.entropy, 'P', pressure_b);
+                error_H_b = (enthalpy_2 - gas.enthalpy) / enthalpy_2;
+
+                m = 0;
+                while 1
+                    m = m + 1;
+                    if m > 100
+                        disp("convergence failed")
+                        break;
+                    end
+                    state_2.pressure = (pressure_a * error_H_b - pressure_b * error_H_a) / (error_H_b - error_H_a);
+                    set(gas.solution, 'S', state_1.entropy, 'P', state_2.pressure);
+                    state_2 = State(gas);
+                    error_H = (enthalpy_2 - state_2.enthalpy) / enthalpy_2; % Checking for convergence
+                    if abs(error_H) < Tolerance
+                        break;
+                    end
+                    if sign(error_H) == sign(error_H_a) % Range redefinition
+                        pressure_a = state_2.pressure;
+                        error_H_a = error_H;
+                    else
+                        pressure_b = state_2.pressure;
+                        error_H_b = error_H;
+                    end
                 end
             end
-            gas.vel = sqrt(2 * (state1.totEnergy - gas.enthalpy));
+
+            gas.vel = sqrt(2 * (state_1.totEnergy - gas.enthalpy));
         end
 
         function gas = setPressureIsentropic(gas, pressure_2)

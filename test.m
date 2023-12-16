@@ -4,28 +4,48 @@ import State.*
 
 % Test file to test parts of code
 
+
 clc, clear, cleanup
+soot = Solution('graphite.yaml');
+gas = GRI30;
+exhaust = Mixture({gas, 1.0; soot, 0.0});
+set(gas, 'P', 10 * oneatm)
 
-%graphite = Solution('graphite.yaml');
-water = Solution('WaterNASA.yaml', 'Water');
-set(water, 'Y', 'H2O(L):1', 'T', 400, 'P', oneatm);
-ice = Solution('WaterNASA.yaml', 'Ice');
-set(ice, 'Y', 'H2O(S):1', 'T', 400, 'P', oneatm);
-equilibrate(water, 'HP');
+%{
+atmo = Gas('air.yaml');
+s_atmo = State(atmo);
+s_atmo.pressure = oneatm;
+setstate(atmo, s_atmo);
+s_atmo = State(atmo);
+expansionRatio = 100000;
+contractionRatio = 10;
 
-%equilibrate(water, 'TP')
-gas = Solution('R1highT.yaml');
-graphite = Solution('graphite.yaml');
-set(gas, 'Y', 'O2:1');
+gas = Gas();
 
-Mix = Mixture({gas, 1; graphite, 3});
-%Mix = Mixture({gas, 1; water, 0.0001});
-equilibrate(Mix, 'HP')
+setstate(gas, 'Y', 'CH4:1,O2:3.6', 'T', 150, 'P', 300e5);
+s_injection = State(gas);
+ 
+setchamberconditions(gas, s_injection)
+s_chamber = State(gas);
 
+setthroatconditions(gas);
+s_throat = State(gas);
 
+setsupersonicexitconditions(gas, expansionRatio);
+s_exit = State(gas);
+
+[shock, flowState] = shockposition(gas, s_atmo, s_exit, s_throat);
+s_exit_s = State(gas);
+disp("Velocity: " + s_injection.velocity + " Entropy:" + s_injection.entropy + " Total Energy: " + s_injection.totEnergy + "Mass Flow Rate: " + s_injection.massFlowFlux * contractionRatio)
+disp("Velocity: " + s_chamber.velocity + " Entropy: " + s_chamber.entropy + " Total Energy: " + s_chamber.totEnergy + "Mass Flow Rate: " + s_chamber.massFlowFlux * contractionRatio)
+disp("Velocity: " + s_throat.velocity + " Entropy: " + s_throat.entropy + " Total Energy: " + s_throat.totEnergy + "Mass Flow Rate: " + s_throat.massFlowFlux)
+disp("Velocity: " + s_exit.velocity + " Entropy: " + s_exit.entropy + " Total Energy: " + s_exit.totEnergy + "Mass Flow Rate: " + s_exit.massFlowFlux * expansionRatio)
+disp("Velocity: " + gas.velocity + " Entropy: " + gas.entropy + " Total Energy: " + gas.totEnergy + "Mass Flow Rate: " + gas.massFlowFlux * shock)
+%}
 
 
 %{
+
 %unitTypes = {'length', 'mass', 'speed', 'force', 'pressure', 'temperature', 'energy', 'power'};
 unitArray = dictionary();
 unitArray("length") = {[Unit("Units\length\meter.unit"), Unit("Units\length\milimeter.unit")]}
