@@ -38,8 +38,10 @@ classdef Unit
         end
 
         function unit = readfromfile(unit, fileName)
+            import Unit.*
+            
             file = fopen(fileName, 'r');
-            unit.type = fscanf(file, 'Type: %s\n');
+            unit.type = toUnitType(fscanf(file, 'Type: %s\n'));
             unit.name = fscanf(file, 'Name: %s\n');
             unit.symbol = fscanf(file, 'Symbol: %s\n');
             unit.multiplier = fscanf(file, 'Multiplier: %f\n');
@@ -50,10 +52,35 @@ classdef Unit
     end
 
     methods (Static)
+        
+        function type = unitType()
+        type = struct('length', 1, 'mass', 2, 'speed', 3, 'force', 4, 'pressure', 5, 'temperature', 6, 'energy', 7, 'power', 8);
+        end
 
-        function aunitValue = applyUnit(value, unit)
+        function type = tounittype(str)
+            switch lower(convertStringsToChars(lower(str)))
+                case 'length'
+                    type = 1;
+                case 'mass'
+                    type = 2;
+                case 'speed'
+                    type = 3;
+                case 'force'
+                    type = 4;
+                case 'pressure'
+                    type = 5;
+                case 'temperature'
+                    type = 6;
+                case 'energy'
+                    type = 7;
+                case 'power'
+                    type = 8;
+            end
+        end
+        
+        function unitValue = applyUnit(value, unit)
             import this.*
-            aunitValue = unit.apply(value);
+            unitValue = unit.apply(value);
         end
 
         function value = removeUnit(unitValue, unit)

@@ -18,6 +18,7 @@ while abs(error_V) > Tolerance
     if abs(error_V_old / error_V) < 1
         n = n + 1;
         if n > 2
+            disp("convergence failed")
             break;
         end
     else
@@ -27,7 +28,7 @@ while abs(error_V) > Tolerance
 
     error_V_abs = error_V_abs + (1 - s_throat.Mach);
     s_throat.pressure = s_stagnation.pressure * (1  + (s_stagnation.k - 1) / 2 * (1 + error_V_abs) ^ 2) ^ ((- s_stagnation.k) / (s_stagnation.k - 1));
-    setPressureIsentropic(gas, s_throat.pressure);
+    setpressureisentropic(gas, s_throat.pressure);
     s_throat = State(gas);
 
     error_V = (s_throat.soundspeed - s_throat.velocity) / s_throat.soundspeed; % Checking for convergence

@@ -6,12 +6,14 @@ classdef Gas < handle
 
     properties (Access = public)
         solution;
+        phaseDiagrams;
     end
 
     properties (Access = private)
-        source;
+        solutionSource;
+        phaseDiagramSource;
         vel;
-        is_massFlowDimenstionless;
+        isMassFlowDimenstionless;
     end
 
     methods (Access = public)
@@ -21,15 +23,17 @@ classdef Gas < handle
 
         function gas = Gas(source, velocity)
             % Path for default constructor
+
+            gas.phaseDiagrams = PhaseDiagram('D:\Uni\Inzynierka\Program\PhaseCurves\H2O');
             if nargin == 0
                 gas.solution = GRI30;
-                gas.source = 'GRI30.yaml';
+                gas.solutionSource = 'GRI30.yaml';
                 gas.vel = 0;
 
                 % Path for a Solution class input
             elseif class(source) == "char"
                 gas.solution = Solution(source);
-                gas.source = source;
+                gas.solutionSource = source;
                 if nargin == 2
                     gas.vel = velocity;
                 else
@@ -40,7 +44,7 @@ classdef Gas < handle
             elseif class(source) == "Gas"
                 gas.solution = Solution(source.source);
                 set(gas.solution, 'Y', source.massFractions, 'T', source.temperature, 'P', source.pressure);
-                gas.source = source.source;
+                gas.solutionSource = source.source;
                 gas.vel = source.velocity;
             end
         end
@@ -123,11 +127,31 @@ classdef Gas < handle
             value = gas.vel * density(gas.solution);
         end
 
+        function hasCondensation = hasCondensation(gas)
+            import PhaseDiagram.*
+
+            hasCondensation = false;
+            for i = 1 : size(gas.phaseDiagrams, 2)
+                if gas.massFractions ~= 0
+                    if gas.phaseDiagrams.checkstateofmatter(gas) ~= 1
+                        hasCondensation = true;
+                        return;
+                    end
+                end
+            end
+        end
+
         function s_stagnation = stagnation(gas)
             import Gas.*
             state_1 = State(gas);
             s_stagnation = State(setvelocityisentropic(gas, 0));
             setstate(gas, state_1);
+        end
+    end
+
+    methods (Access = private)
+        function importphasediagram(gas)
+            gas.phaseDiagrams
         end
     end
 
@@ -375,7 +399,7 @@ classdef Gas < handle
             gas.vel = sqrt(2 * (state_1.totEnergy - gas.enthalpy));
         end
 
-        function gas = setPressureIsentropic(gas, pressure_2)
+        function gas = setpressureisentropic(gas, pressure_2)
             import Gas.*
             state1 = State(gas);
             set(gas.solution, 'P', pressure_2, 'S', gas.entropy);
