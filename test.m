@@ -10,10 +10,10 @@ clc, clear, cleanup
 
 atmo = Gas('air.yaml');
 s_atmo = State(atmo);
-s_atmo.pressure = 0.000000000000000000001;
+s_atmo.pressure = oneatm;
 setstate(atmo, s_atmo);
 s_atmo = State(atmo);
-expansionRatio = 77.5;
+expansionRatio = 4000000000000;
 contractionRatio = 15;
 Tolerance = 1e-12;
 heatPower = 0;
@@ -22,17 +22,14 @@ gas = Gas('R1highT.yaml');
 %gas = Gas();
 
 %setstate(gas, 'Y', 'CH4:1,O2:3.6', 'T', 150, 'P', 300e5);
-%setstate(gas, 'Y', 'H2:1,O2:6.03', 'T', 150, 'P', 20.64e6);
-setstate(gas, 'Y', 'H2O:1', 'T', 1200, 'P', 10e5);
+setstate(gas, 'Y', 'H2:1,O2:6.03', 'T', 150, 'P', 20.64e6);
+%setstate(gas, 'Y', 'H2O:1', 'T', 1200, 'P', 10e5);
 %setstate(gas, 'Y', 'POSF7688:1,O2: 2.36', 'T', 150, 'P', 26.7e6);
 %setstate(gas, 'Y', 'POSF7688:1,O2: 2.63', 'T', 200, 'P', 24.52e6);
-%setstate(gas, 'Y', 'H2:1,O2:6.03', 'T', 150, 'P', 20.64e6);
 s_injection = State(gas);
- 
+
 setchamberconditions(gas, s_injection)
 s_chamber = State(gas);
-gas.hasCondensation
-
 mass_rate_area_old = 0;
 for i = 1 : 20
     setthroatconditions(gas);
@@ -52,13 +49,18 @@ for i = 1 : 20
 
     mass_rate_area_old = s_throat.massFlowFlux;
 end
+%setvelocityisentropic(gas, 3169.59895660403);
+%gas.velocity
 
 setsupersonicexitconditions(gas, expansionRatio);
 s_supersonicExit = State(gas);
 
+[separation, distanceFromSeparation, s_separation] = checkforseparation(gas, s_throat, s_supersonicExit, s_atmo);
+
 [shock, flowState, s_shock_1, s_shock_2] = shockposition(gas, s_atmo, s_supersonicExit, s_throat);
 s_shockExit = State(gas);
 s_shockStagnation = gas.stagnation;
+
 specificImpulse = specificimpulse(gas, s_atmo);
 
 disp("Injection: "+ "Velocity: " + s_injection.velocity         + " Entropy: " + s_injection.entropy        + " Total Energy: " + s_injection.totEnergy         + "Mass Flow Rate: " + s_injection.massFlowFlux * contractionRatio)
@@ -67,9 +69,9 @@ disp("Throat:    "+ "Velocity: " + s_throat.velocity            + " Entropy: " +
 disp("Exit:      "+ "Velocity: " + s_supersonicExit.velocity    + " Entropy: " + s_supersonicExit.entropy   + " Total Energy: " + s_supersonicExit.totEnergy    + "Mass Flow Rate: " + s_supersonicExit.massFlowFlux * expansionRatio)
 disp("ShockExit: "+ "Velocity: " + s_shockExit.velocity         + " Entropy: " + s_shockExit.entropy        + " Total Energy: " + s_shockExit.totEnergy         + "Mass Flow Rate: " + s_shockExit.massFlowFlux * shock)
 disp("ShockStag: "+ "Velocity: " + s_shockStagnation.velocity   + " Entropy: " + s_shockStagnation.entropy  + " Total Energy: " + s_shockStagnation.totEnergy   + "Mass Flow Rate: " + s_shockStagnation.massFlowFlux)
-disp("Gas:       "+ "Velocity: " + gas.velocity                 + " Entropy: " + gas.entropy                + " Total Energy: " + gas.totEnergy                 + "Mass Flow Rate: " + gas.massFlowFlux * shock)
+disp("Separat:   "+ "Velocity: " + s_separation.velocity        + " Entropy: " + s_separation.entropy       + " Total Energy: " + s_separation.totEnergy        + "Mass Flow Rate: " + s_separation.massFlowFlux * separation)
+disp("Gas:       "+ "Velocity: " + gas.velocity                 + " Entropy: " + gas.entropy                + " Total Energy: " + gas.totEnergy                 + "Mass Flow Rate: " + gas.massFlowFlux * expansionRatio)
 %disp("Mach: " + s_shock_1.Mach + " p_sep/p_a: " + s_shock_1.pressure / s_atmo.pressure);
-
 
 %{
 phase = PhaseDiagram('D:\Uni\Inzynierka\Program\PhaseCurves\H2O')

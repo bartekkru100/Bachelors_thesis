@@ -42,9 +42,9 @@ classdef Gas < handle
 
                 % Path for a State class input
             elseif class(source) == "Gas"
-                gas.solution = Solution(source.source);
+                gas.solution = Solution(source.solutionSource);
                 set(gas.solution, 'Y', source.massFractions, 'T', source.temperature, 'P', source.pressure);
-                gas.solutionSource = source.source;
+                gas.solutionSource = source.solutionSource;
                 gas.vel = source.velocity;
             end
         end
@@ -155,7 +155,7 @@ classdef Gas < handle
         end
     end
 
-    methods (Static)
+    methods (Static, Access = public)
 
         function R_universal = R_universal()
             R_universal = 8314.46261815324;
@@ -267,41 +267,50 @@ classdef Gas < handle
                 error_S = (state_1.entropy - gas.entropy) / state_1.entropy; % Checking for convergence
             end
 
-            % If the estimation was not within tolerance, false position
+            % If the estimation was not within tolerance, Muller's position
             % method is used
             if abs(error_S) > Tolerance
-                % Choosing the brackets based on the diference between
-                % previous estimations
-                error_P = state_2_old.pressure / state_2.pressure;
 
-                pressure_a = state_2.pressure * error_P;
-                set(gas.solution, 'T', temperature_2, 'P', pressure_a);
-                error_S_a = (state_1.entropy - gas.entropy) / state_1.entropy;
+                % Point 1
+                pressure_1 = state_2.pressure;
+                error_S_1 = error_temperatureisentropic(gas, temperature_2, pressure_1, state_1);
 
-                pressure_b = state_2.pressure / error_P;
-                set(gas.solution, 'T', temperature_2, 'P', pressure_b);
-                error_S_b = (state_1.entropy - gas.entropy) / state_1.entropy;
+                % Point 2
+                pressure_2 = (state_2.pressure + state_2_old.pressure) / 2;
+                error_S_2 = error_temperatureisentropic(gas, temperature_2, pressure_2, state_1);
 
-                m = 0;
+                % Point 3
+                pressure_3 = state_2_old.pressure;
+                error_S_3 = error_temperatureisentropic(gas, temperature_2, pressure_3, state_1);
+
+                n = 0;
                 while 1
-                    m = m + 1;
-                    if m > 100
-                        disp("convergence failed")
+                    n = n + 1;
+                    if n > 100
+                        disp("convergence failed in settemperatureisentropic with error = " + error_S_1);
                         break;
                     end
-                    state_2.pressure = (pressure_a * error_S_b - pressure_b * error_S_a) / (error_S_b - error_S_a);
-                    set(gas.solution, 'T', temperature_2, 'P', state_2.pressure);
-                    state_2 = State(gas);
-                    error_S = (state_1.entropy - gas.entropy) / state_1.entropy; % Checking for convergence
-                    if abs(error_S) < Tolerance
+
+                    q = (pressure_1 - pressure_2) / (pressure_2 - pressure_3);
+                    a = q * error_S_1 - q * (1 + q) * error_S_2 + q ^ 2 * error_S_3;
+                    b = (2 * q + 1) * error_S_1 - (1 + q) ^ 2 * error_S_2 + q ^ 2 * error_S_3;
+                    c = (1 + q) * error_S_1;
+                    sqrtDelta = sqrt(b ^ 2 - 4 * a * c);
+                    denom(1) = (b + sqrtDelta);
+                    denom(2) = (b - sqrtDelta);
+
+                    pressure_0 = min(pressure_1 - (pressure_1 - pressure_2) * (2 * c) ./ denom);
+                    error_H_0 = error_temperatureisentropic(gas, temperature_2, pressure_0, state_1);
+
+                    pressure_3 = pressure_2;
+                    error_S_3 = error_S_2;
+                    pressure_2 = pressure_1;
+                    error_S_2 = error_S_1;
+                    pressure_1 = pressure_0;
+                    error_S_1 = error_H_0;
+
+                    if abs(error_S_1) < Tolerance
                         break;
-                    end
-                    if sign(error_S) == sign(error_S_a) % Range redefinition
-                        pressure_a = state_2.pressure;
-                        error_S_a = error_S;
-                    else
-                        pressure_b = state_2.pressure;
-                        error_S_b = error_S;
                     end
                 end
             end
@@ -343,55 +352,67 @@ classdef Gas < handle
                 else
                     n = 0;
                 end
-                state_2_old = state_2; % Storing the state from the first estimation for later
+                state_2_old = state_2;
                 error_H_old = error_H;
 
                 error_H_abs = error_H_abs + (delta_enthalpy - delta_enthalpy_calc);
                 state_2.temperature = state_1.temperature + (delta_enthalpy + error_H_abs) / state_1.cp;
                 state_2.pressure = state_1.pressure * (state_2.temperature / state_1.temperature) ^ (state_1.k / (state_1.k - 1));
 
-                set(gas.solution, 'S', state_1.entropy, 'P', state_2.pressure);
+                setpressureisentropic_still(gas, state_2.pressure, state_1);
                 state_2 = State(gas);
                 delta_enthalpy_calc = state_2.enthalpy - state_1.enthalpy;
 
                 error_H = (enthalpy_2 - state_2.enthalpy) / enthalpy_2;
             end
 
-            % If the estimation was not within tolerance, false position
+            % If the estimation was not within tolerance, Muller's position
             % method is used
             if abs(error_H) > Tolerance
-                % Choosing the brackets based on the diference between
-                % previous estimations
-                error_P_abs = abs(state_2_old.pressure - state_2.pressure);
 
-                pressure_a = state_2.pressure + error_P_abs;
-                set(gas.solution, 'S', state_1.entropy, 'P', pressure_a);
-                error_H_a = (enthalpy_2 - gas.enthalpy) / enthalpy_2;
+                % Point 1
+                pressure_1 = state_2.pressure;
+                error_H_1 = error_enthalpyisentropic(gas, enthalpy_2, pressure_1, state_1);
 
-                pressure_b = state_2.pressure - error_P_abs;
-                set(gas.solution, 'S', state_1.entropy, 'P', pressure_b);
-                error_H_b = (enthalpy_2 - gas.enthalpy) / enthalpy_2;
+                % Point 2
+                pressure_2 = (state_2.pressure + state_2_old.pressure) / 2;
+                error_H_2 = error_enthalpyisentropic(gas, enthalpy_2, pressure_2, state_1);
 
-                m = 0;
+                % Point 3
+                pressure_3 = state_2_old.pressure;
+                error_H_3 = error_enthalpyisentropic(gas, enthalpy_2, pressure_3, state_1);
+
+                n = 0;
                 while 1
-                    m = m + 1;
-                    if m > 100
-                        disp("convergence failed")
+                    n = n + 1;
+                    if n > 100
+                        disp("convergence failed in setenthalpyisentropic with error = " + error_H_1);
                         break;
                     end
-                    state_2.pressure = (pressure_a * error_H_b - pressure_b * error_H_a) / (error_H_b - error_H_a);
-                    set(gas.solution, 'S', state_1.entropy, 'P', state_2.pressure);
-                    state_2 = State(gas);
-                    error_H = (enthalpy_2 - state_2.enthalpy) / enthalpy_2; % Checking for convergence
-                    if abs(error_H) < Tolerance
-                        break;
+
+                    q = (pressure_1 - pressure_2) / (pressure_2 - pressure_3);
+                    a = q * error_H_1 - q * (1 + q) * error_H_2 + q ^ 2 * error_H_3;
+                    b = (2 * q + 1) * error_H_1 - (1 + q) ^ 2 * error_H_2 + q ^ 2 * error_H_3;
+                    c = (1 + q) * error_H_1;
+                    sqrtDelta = sqrt(b ^ 2 - 4 * a * c);
+                    denom(1) = (b + sqrtDelta);
+                    denom(2) = (b - sqrtDelta);
+
+                    pressure_0 = real(min(pressure_1 - (pressure_1 - pressure_2) * (2 * c) ./ denom));
+                    if pressure_0 <= 0
+                        pressure_0 = min([pressure_1, pressure_2, pressure_3]) / 2;
                     end
-                    if sign(error_H) == sign(error_H_a) % Range redefinition
-                        pressure_a = state_2.pressure;
-                        error_H_a = error_H;
-                    else
-                        pressure_b = state_2.pressure;
-                        error_H_b = error_H;
+                    error_H_0 = error_enthalpyisentropic(gas, enthalpy_2, pressure_0, state_1);
+
+                    pressure_3 = pressure_2;
+                    error_H_3 = error_H_2;
+                    pressure_2 = pressure_1;
+                    error_H_2 = error_H_1;
+                    pressure_1 = pressure_0;
+                    error_H_1 = error_H_0;
+
+                    if abs(error_H_1) < Tolerance
+                        break;
                     end
                 end
             end
@@ -399,11 +420,65 @@ classdef Gas < handle
             gas.vel = sqrt(2 * (state_1.totEnergy - gas.enthalpy));
         end
 
-        function gas = setpressureisentropic(gas, pressure_2)
+        function gas = setpressureisentropic(gas, pressure_2, state_1)
             import Gas.*
-            state1 = State(gas);
-            set(gas.solution, 'P', pressure_2, 'S', gas.entropy);
-            gas.vel = sqrt(2 * (state1.totEnergy - gas.enthalpy));
+            if nargin == 2
+                state_1 = State(gas);
+            end
+
+            setpressureisentropic_still(gas, pressure_2, state_1);
+
+            gas.vel = sqrt(2 * (state_1.totEnergy - gas.enthalpy));
         end
+
+        function gas = setpressureisentropic_still(gas, pressure_2, state_1)
+            import Gas.*
+
+            try
+                set(gas.solution, 'P', pressure_2, 'S', gas.entropy);
+            catch
+                if pressure_2 <= 0
+                    error("Pressure must be positive.")
+                elseif isnan(pressure_2)
+                    error("Pressure must not be NaN.")
+                end
+                hasError = true;
+                n = 2;
+                while hasError
+                    hasError = false;
+                    setstate(gas, state_1);
+                    try
+                        for pressure = logspace(log10(state_1.pressure), log10(pressure_2), n)
+                            set(gas.solution, 'P', pressure, 'S', gas.entropy);
+                        end
+                    catch
+                        n = n * 2;
+                        if n > 1024
+                            error("Can't calculate isentropic pressure.")
+                        end
+                        hasError = true;
+                    end
+                end
+            end
+        end
+
+    end
+
+    methods (Static, Access = private)
+
+        function error_S = error_temperatureisentropic(gas, temperature_2, pressure, state_1)
+            import Gas.*
+
+            set(gas.solution, 'T', temperature_2, 'P', pressure);
+            error_S = (state_1.entropy - gas.entropy) / state_1.entropy; % Checking for convergence
+        end
+
+        function error_H = error_enthalpyisentropic(gas, enthalpy_2, pressure, state_1)
+            import Gas.*
+            setstate(gas, state_1);
+            setpressureisentropic_still(gas, pressure, state_1);
+            error_H = (enthalpy_2 - gas.enthalpy) / enthalpy_2;
+        end
+
     end
 end

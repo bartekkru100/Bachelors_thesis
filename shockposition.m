@@ -33,7 +33,7 @@ n = 0;
 while 1
     n = n + 1;
     if n > 100
-        disp("convergence failed")
+        disp("convergence failed in shockposition at error = " + error_M_1)
         break;
     end
 
@@ -49,6 +49,7 @@ while 1
     if velocity_0 >= s_throat.velocity
         velocity_0 = max([velocity_1, velocity_2, velocity_3, s_throat.velocity]);
         if velocity_1 >= s_throat.velocity
+            %error("failed to find shocked exit condition")
             break;
         end
     end
@@ -74,7 +75,10 @@ velocity_1 = s_throat.velocity;
 error_M_1 = shockerror(gas, velocity_1, s_throat, s_shockExit);
 
 % Point 2
-velocity_2 = s_throat.velocity * 2;
+setstate(gas, s_throat);
+setpressureisentropic(gas, s_atmo.pressure);
+gas.Mach;
+velocity_2 = (s_supersonicExit.velocity * (s_supersonicExit.Mach - gas.Mach)  + s_throat.velocity * gas.Mach) / s_supersonicExit.Mach;
 error_M_2 = shockerror(gas, velocity_2, s_throat, s_shockExit);
 
 % Point 3
@@ -85,7 +89,7 @@ n = 0;
 while 1
     n = n + 1;
     if n > 100
-        disp("convergence failed")
+        disp("convergence failed in shockposition at error = " + error_M_1)
         break;
     end
 
@@ -96,13 +100,10 @@ while 1
     sqrtDelta = sqrt(b ^ 2 - 4 * a * c);
     denom(1) = (b + sqrtDelta);
     denom(2) = (b - sqrtDelta);
-    velocity_0 = max(velocity_1 - (velocity_1 - velocity_2) * (2 * c) ./ denom);
+    velocity_0 = real(max(velocity_1 - (velocity_1 - velocity_2) * (2 * c) ./ denom));
 
     if velocity_0 >= s_supersonicExit.velocity
-        velocity_0 = max([velocity_1, velocity_2, velocity_3, s_supersonicExit.velocity]);
-        if velocity_1 >= s_supersonicExit.velocity
-            break;
-        end
+        velocity_0 = s_supersonicExit.velocity;
     end
     [error_M_0, s_shock_1, s_shock_2] = shockerror(gas, velocity_0, s_throat, s_shockExit);
 
