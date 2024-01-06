@@ -2,67 +2,43 @@ function [expansionRatio, flowState, s_shock_1, s_shock_2] = shockposition(gas, 
 import State.*
 import Gas.*
 
-if s_supersonicExit.pressure > s_atmo.pressure
-    flowState = 'underexpanded';
-    s_shock_1 = 0;
-    s_shock_2 = 0;
-    expansionRatio = s_throat.massFlowFlux / s_supersonicExit.massFlowFlux;
-    return;
-end
-
+s_maxVelocity = gas.maxvelocity;
 s_stagnation1 = gas.stagnation;
 setstate(gas, 'P', s_atmo.pressure, 'H', s_stagnation1.enthalpy, 'velocity', 0);
 setstate(gas, s_throat);
-Tolerance = 1e-12;
+tolerance = 1e-12;
 
 % Using Muller's method
 
 % Point 1
-velocity_1 = 0;
-error_M_1 = exiterror(gas, velocity_1, s_throat, s_supersonicExit, s_atmo);
+velocity(1) = 0;
+error_M(1) = exiterror(gas, velocity(1), s_throat, s_supersonicExit, s_atmo);
 
 % Point 2
-velocity_2 = s_throat.velocity / 2;
-error_M_2 = exiterror(gas, velocity_2, s_throat, s_supersonicExit, s_atmo);
+velocity(2) = s_throat.velocity / 2;
+error_M(2) = exiterror(gas, velocity(2), s_throat, s_supersonicExit, s_atmo);
 
 % Point 3
-velocity_3 = s_throat.velocity;
-error_M_3 = exiterror(gas, velocity_3, s_throat, s_supersonicExit, s_atmo);
+velocity(3) = s_throat.velocity;
+error_M(3) = exiterror(gas, velocity(3), s_throat, s_supersonicExit, s_atmo);
 
-n = 0;
+numericalMethod = MullersMethod("shockposition", tolerance, 100, velocity, error_M, 'max');
+
 while 1
-    n = n + 1;
-    if n > 100
-        disp("convergence failed in shockposition at error = " + error_M_1)
-        break;
-    end
 
-    q = (velocity_1 - velocity_2) / (velocity_2 - velocity_3);
-    a = q * error_M_1 - q * (1 + q) * error_M_2 + q ^ 2 * error_M_3;
-    b = (2 * q + 1) * error_M_1 - (1 + q) ^ 2 * error_M_2 + q ^ 2 * error_M_3;
-    c = (1 + q) * error_M_1;
-    sqrtDelta = sqrt(b ^ 2 - 4 * a * c);
-    denom(1) = (b + sqrtDelta);
-    denom(2) = (b - sqrtDelta);
-    velocity_0 = max(velocity_1 - (velocity_1 - velocity_2) * (2 * c) ./ denom);
+    velocity_0 = numericalMethod.findnewX;
 
     if velocity_0 >= s_throat.velocity
-        velocity_0 = max([velocity_1, velocity_2, velocity_3, s_throat.velocity]);
-        if velocity_1 >= s_throat.velocity
+        velocity_0 = s_throat.velocity * (numericalMethod.iteration + 1) / (numericalMethod.iteration + 2);
+        if velocity(1) >= s_throat.velocity
             %error("failed to find shocked exit condition")
             break;
         end
     end
     error_M_0 = exiterror(gas, velocity_0, s_throat, s_supersonicExit, s_atmo);
 
-    velocity_3 = velocity_2;
-    error_M_3 = error_M_2;
-    velocity_2 = velocity_1;
-    error_M_2 = error_M_1;
-    velocity_1 = velocity_0;
-    error_M_1 = error_M_0;
-
-    if abs(error_M_1) < Tolerance
+    numericalMethod.updateXY(velocity_0, error_M_0);
+    if numericalMethod.checkconvergence
         break;
     end
 end
@@ -71,59 +47,46 @@ s_shockExit = State(gas);
 % Using Muller's method
 
 % Point 1
-velocity_1 = s_throat.velocity;
-error_M_1 = shockerror(gas, velocity_1, s_throat, s_shockExit);
+setstate(gas, s_throat);
+setpressureisentropic(gas, s_atmo.pressure / s_maxVelocity.Mach);
+velocity(1) = gas.velocity;
+error_M(1) = shockerror(gas, velocity(1), s_throat, s_shockExit);
 
 % Point 2
-setstate(gas, s_throat);
-setpressureisentropic(gas, s_atmo.pressure);
-gas.Mach;
-velocity_2 = (s_supersonicExit.velocity * (s_supersonicExit.Mach - gas.Mach)  + s_throat.velocity * gas.Mach) / s_supersonicExit.Mach;
-error_M_2 = shockerror(gas, velocity_2, s_throat, s_shockExit);
+velocity(2) = (velocity(1) + s_maxVelocity.velocity) / 2;
+error_M(2) = shockerror(gas, velocity(2), s_throat, s_shockExit);
 
 % Point 3
-velocity_3 = s_supersonicExit.velocity;
-error_M_3 = shockerror(gas, velocity_3, s_throat, s_shockExit);
+velocity(3) = (velocity(1) + s_maxVelocity.velocity * 2) / 3;
+error_M(3) = shockerror(gas, velocity(3), s_throat, s_shockExit);
 
-n = 0;
+velocity_fallback = velocity(3);
+
+numericalMethod = MullersMethod("shockposition", tolerance, 100, velocity, error_M, 'max')
+
 while 1
-    n = n + 1;
-    if n > 100
-        disp("convergence failed in shockposition at error = " + error_M_1)
-        break;
-    end
 
-    q = (velocity_1 - velocity_2) / (velocity_2 - velocity_3);
-    a = q * error_M_1 - q * (1 + q) * error_M_2 + q ^ 2 * error_M_3;
-    b = (2 * q + 1) * error_M_1 - (1 + q) ^ 2 * error_M_2 + q ^ 2 * error_M_3;
-    c = (1 + q) * error_M_1;
-    sqrtDelta = sqrt(b ^ 2 - 4 * a * c);
-    denom(1) = (b + sqrtDelta);
-    denom(2) = (b - sqrtDelta);
-    velocity_0 = real(max(velocity_1 - (velocity_1 - velocity_2) * (2 * c) ./ denom));
+    velocity_0 = numericalMethod.findnewX;
 
-    if velocity_0 >= s_supersonicExit.velocity
-        velocity_0 = s_supersonicExit.velocity;
+    if velocity_0 >= s_maxVelocity.velocity
+        velocity_0 = (velocity_fallback + s_maxVelocity.velocity * n) / (n + 1);
     end
     [error_M_0, s_shock_1, s_shock_2] = shockerror(gas, velocity_0, s_throat, s_shockExit);
 
-    velocity_3 = velocity_2;
-    error_M_3 = error_M_2;
-    velocity_2 = velocity_1;
-    error_M_2 = error_M_1;
-    velocity_1 = velocity_0;
-    error_M_1 = error_M_0;
-
-    if abs(error_M_1) < Tolerance
-        flowState = 'normal shock in the nozzle';
-        expansionRatio = s_throat.massFlowFlux / gas.massFlowFlux;
-        setstate(gas, s_shockExit);
-        return;
+    numericalMethod.updateXY(velocity_0, error_M_0);
+    if numericalMethod.checkconvergence
+        break;
     end
 end
-flowState = 'overexpanded';
-setstate(gas, s_supersonicExit);
-expansionRatio = s_throat.massFlowFlux / s_supersonicExit.massFlowFlux;
+if velocity_0 > s_supersonicExit.velocity
+    flowState = 'normal shock in the nozzle';
+    setstate(gas, s_shockExit);
+    expansionRatio = s_throat.massFlowFlux / gas.massFlowFlux;
+else
+    flowState = 'overexpanded';
+    setstate(gas, s_supersonicExit);
+    expansionRatio = s_throat.massFlowFlux / s_supersonicExit.massFlowFlux;
+end
 end
 
 

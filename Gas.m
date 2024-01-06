@@ -147,6 +147,22 @@ classdef Gas < handle
             s_stagnation = State(setvelocityisentropic(gas, 0));
             setstate(gas, state_1);
         end
+
+        function s_macVelocity = maxvelocity(gas)
+            import Gas.*
+            state_1 = State(gas);
+            pressure = 1;
+            while 1
+                try
+                    setpressureisentropic(gas, pressure);
+                    s_macVelocity = State(gas);
+                    pressure = pressure / 10;
+                catch
+                    setstate(gas, state_1);
+                    return;
+                end
+            end
+        end
     end
 
     methods (Access = private)
@@ -237,79 +253,56 @@ classdef Gas < handle
             state_2_old = state_2;
 
             % Error declarations
-            Tolerance = 1e-12;
-            error_S = Tolerance * 10;
-            error_S_old = error_S;
+            tolerance = 1e-12;
             error_S_abs = 0;
 
             % Initial estimation of pressure after the process.
 
-            n = 0;
-            while abs(error_S) > Tolerance
-                if abs(error_S_old / error_S) < 10
-                    n = n + 1;
-                    if n > 2
-                        break;
-                    end
-                else
-                    n = 0;
-                end
-                state_2_old = state_2; % Storing the state from the first estimation for later
-                error_S_old = error_S;
+            numericalMethod = ErrorCorrectedMethod("settemperatureisentropic_stage1", tolerance, 100);
 
+            while 1
                 error_S_abs = error_S_abs + (state_1.entropy - gas.entropy);
-                state_2.pressure = state_1.pressure * ((temperature_2 / state_1.temperature) ^ (state_1.cp / state_1.R_specific) / ...
-                    exp(error_S_abs / state_1.R_specific));
+                pressure = state_1.pressure * ((temperature_2 / state_1.temperature) ^ (state_1.cp / state_1.R_specific) / ...
+                                                      exp(error_S_abs / state_1.R_specific));
+                numericalMethod.findnewX(pressure);
 
-                set(gas.solution, 'T', temperature_2, 'P', state_2.pressure);
+                set(gas.solution, 'T', temperature_2, 'P', pressure);
                 state_2 = State(gas);
 
                 error_S = (state_1.entropy - gas.entropy) / state_1.entropy; % Checking for convergence
+
+                numericalMethod.updateXY(state_2.pressure, error_S);
+                if numericalMethod.checkconvergence()
+                    break;
+                end
             end
 
             % If the estimation was not within tolerance, Muller's position
             % method is used
-            if abs(error_S) > Tolerance
 
+            if ~numericalMethod.hasconverged
+                
                 % Point 1
-                pressure_1 = state_2.pressure;
-                error_S_1 = error_temperatureisentropic(gas, temperature_2, pressure_1, state_1);
-
+                pressure(1) = state_2.pressure;
+                error_S(1) = error_temperatureisentropic(gas, temperature_2, pressure(1), state_1);
                 % Point 2
-                pressure_2 = (state_2.pressure + state_2_old.pressure) / 2;
-                error_S_2 = error_temperatureisentropic(gas, temperature_2, pressure_2, state_1);
+                pressure(2) = (state_2.pressure + numericalMethod.get.X_0_old) / 2;
+                error_S(2) = error_temperatureisentropic(gas, temperature_2, pressure(2), state_1);
 
                 % Point 3
-                pressure_3 = state_2_old.pressure;
-                error_S_3 = error_temperatureisentropic(gas, temperature_2, pressure_3, state_1);
+                pressure(3) = numericalMethod.get.X_0_old;
+                error_S(3) = error_temperatureisentropic(gas, temperature_2, pressure(3), state_1);
 
-                n = 0;
+                numericalMethod = MullersMethod("settemperatureisentropic_stage2", tolerance, 100, pressure, error_S, 'min');
+
                 while 1
-                    n = n + 1;
-                    if n > 100
-                        disp("convergence failed in settemperatureisentropic with error = " + error_S_1);
-                        break;
-                    end
 
-                    q = (pressure_1 - pressure_2) / (pressure_2 - pressure_3);
-                    a = q * error_S_1 - q * (1 + q) * error_S_2 + q ^ 2 * error_S_3;
-                    b = (2 * q + 1) * error_S_1 - (1 + q) ^ 2 * error_S_2 + q ^ 2 * error_S_3;
-                    c = (1 + q) * error_S_1;
-                    sqrtDelta = sqrt(b ^ 2 - 4 * a * c);
-                    denom(1) = (b + sqrtDelta);
-                    denom(2) = (b - sqrtDelta);
+                    pressure_0 = numericalMethod.findnewX;
 
-                    pressure_0 = min(pressure_1 - (pressure_1 - pressure_2) * (2 * c) ./ denom);
-                    error_H_0 = error_temperatureisentropic(gas, temperature_2, pressure_0, state_1);
+                    error_S_0 = error_temperatureisentropic(gas, temperature_2, pressure_0, state_1);
 
-                    pressure_3 = pressure_2;
-                    error_S_3 = error_S_2;
-                    pressure_2 = pressure_1;
-                    error_S_2 = error_S_1;
-                    pressure_1 = pressure_0;
-                    error_S_1 = error_H_0;
-
-                    if abs(error_S_1) < Tolerance
+                    numericalMethod.updateXY(pressure_0, error_S_0);
+                    if numericalMethod.checkconvergence
                         break;
                     end
                 end
@@ -329,105 +322,80 @@ classdef Gas < handle
 
             % Declaration of states.
             state_1 = State(gas);
-            state_2 = State(gas);
-            state_2_old = state_2;
+            pressure_min = 0.1;%gas.maxvelocity.pressure;
 
             % Error declarations
-            Tolerance = 1e-12;
-            error_H = Tolerance * 10;
-            error_H_old = error_H;
+            tolerance = 1e-12;
+            maxIterations = 10;
             error_H_abs = 0;
 
             % Initial estimation of pressure after the process.
             delta_enthalpy = enthalpy_2 - state_1.enthalpy;
             delta_enthalpy_calc = delta_enthalpy;
 
-            n = 0;
-            while abs(error_H) > Tolerance
-                if abs(error_H_old / error_H) < 2
-                    n = n + 1;
-                    if n > 3
-                        break;
-                    end
-                else
-                    n = 0;
-                end
-                state_2_old = state_2;
-                error_H_old = error_H;
+            numericalMethod = ErrorCorrectedMethod("setenthalpyisentropic_stage1", tolerance, 100);
+
+            while 1
 
                 error_H_abs = error_H_abs + (delta_enthalpy - delta_enthalpy_calc);
-                state_2.temperature = state_1.temperature + (delta_enthalpy + error_H_abs) / state_1.cp;
-                state_2.pressure = state_1.pressure * (state_2.temperature / state_1.temperature) ^ (state_1.k / (state_1.k - 1));
+                temperature = state_1.temperature + (delta_enthalpy + error_H_abs) / state_1.cp;
+                pressure = state_1.pressure * (temperature / state_1.temperature) ^ (state_1.k / (state_1.k - 1));
 
-                setpressureisentropic_still(gas, state_2.pressure, state_1);
-                state_2 = State(gas);
-                delta_enthalpy_calc = state_2.enthalpy - state_1.enthalpy;
+                numericalMethod.findnewX(pressure);
 
-                error_H = (enthalpy_2 - state_2.enthalpy) / enthalpy_2;
+                setpressureisentropic_still(gas, pressure, state_1);
+                delta_enthalpy_calc = gas.enthalpy - state_1.enthalpy;
+
+                error_H = (enthalpy_2 - gas.enthalpy) / enthalpy_2;
+
+                numericalMethod.updateXY(pressure, error_H);
+                if numericalMethod.checkconvergence
+                    break;
+                end
             end
 
             % If the estimation was not within tolerance, Muller's position
             % method is used
-            if abs(error_H) > Tolerance
+            if ~numericalMethod.hasconverged
+
+                pressure_min = gas.maxvelocity.pressure;
 
                 % Point 1
-                pressure_1 = state_2.pressure;
-                error_H_1 = error_enthalpyisentropic(gas, enthalpy_2, pressure_1, state_1);
+                pressure(1) = pressure;
+                error_H(1) = error_enthalpyisentropic(gas, enthalpy_2, pressure(1), state_1);
 
                 % Point 2
-                pressure_2 = (state_2.pressure + state_2_old.pressure) / 2;
-                error_H_2 = error_enthalpyisentropic(gas, enthalpy_2, pressure_2, state_1);
+                pressure(2) = (pressure(1) + numericalMethod.get.Y_0_old) / 2;
+                error_H(2) = error_enthalpyisentropic(gas, enthalpy_2, pressure(2), state_1);
 
                 % Point 3
-                pressure_3 = state_2_old.pressure;
-                error_H_3 = error_enthalpyisentropic(gas, enthalpy_2, pressure_3, state_1);
+                pressure(3) = numericalMethod.get.Y_0_old;
+                error_H(3) = error_enthalpyisentropic(gas, enthalpy_2, pressure(3), state_1);
 
-                n = 0;
+                numericalMethod = MullersMethod("setenthalpyisentropic_stage2", tolerance, 100, pressure, error_H, 'min');
+
                 while 1
-                    n = n + 1;
-                    if n > 100
-                        disp("convergence failed in setenthalpyisentropic with error = " + error_H_1);
-                        break;
+                    pressure = numericalMethod.findnewX;
+                    if pressure <= 0
+                        pressure = pressure_min;
                     end
-
-                    q = (pressure_1 - pressure_2) / (pressure_2 - pressure_3);
-                    a = q * error_H_1 - q * (1 + q) * error_H_2 + q ^ 2 * error_H_3;
-                    b = (2 * q + 1) * error_H_1 - (1 + q) ^ 2 * error_H_2 + q ^ 2 * error_H_3;
-                    c = (1 + q) * error_H_1;
-                    sqrtDelta = sqrt(b ^ 2 - 4 * a * c);
-                    denom(1) = (b + sqrtDelta);
-                    denom(2) = (b - sqrtDelta);
-
-                    pressure_0 = real(min(pressure_1 - (pressure_1 - pressure_2) * (2 * c) ./ denom));
-                    if pressure_0 <= 0
-                        pressure_0 = min([pressure_1, pressure_2, pressure_3]) / 2;
-                    end
-                    error_H_0 = error_enthalpyisentropic(gas, enthalpy_2, pressure_0, state_1);
-
-                    pressure_3 = pressure_2;
-                    error_H_3 = error_H_2;
-                    pressure_2 = pressure_1;
-                    error_H_2 = error_H_1;
-                    pressure_1 = pressure_0;
-                    error_H_1 = error_H_0;
-
-                    if abs(error_H_1) < Tolerance
+                    error_H = error_enthalpyisentropic(gas, enthalpy_2, pressure, state_1);
+                    numericalMethod.updateXY(pressure, error_H);
+                    if numericalMethod.checkconvergence
                         break;
                     end
                 end
             end
-
             gas.vel = sqrt(2 * (state_1.totEnergy - gas.enthalpy));
         end
 
         function gas = setpressureisentropic(gas, pressure_2, state_1)
             import Gas.*
+            
             if nargin == 2
                 state_1 = State(gas);
             end
-
             setpressureisentropic_still(gas, pressure_2, state_1);
-
             gas.vel = sqrt(2 * (state_1.totEnergy - gas.enthalpy));
         end
 
@@ -475,6 +443,7 @@ classdef Gas < handle
 
         function error_H = error_enthalpyisentropic(gas, enthalpy_2, pressure, state_1)
             import Gas.*
+
             setstate(gas, state_1);
             setpressureisentropic_still(gas, pressure, state_1);
             error_H = (enthalpy_2 - gas.enthalpy) / enthalpy_2;

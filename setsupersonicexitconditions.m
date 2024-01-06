@@ -2,56 +2,39 @@ function gas = setsupersonicexitconditions(gas, expansionRatio)
 import Gas.*
 
 s_throat = State(gas);
-Tolerance = 1e-12;
+tolerance = 1e-12;
 
 % Using Muller's method
 
 % Point 1
-temperature_1 = s_throat.temperature / sqrt(expansionRatio);
-error_M_1 = exiterror(gas, temperature_1, s_throat, expansionRatio);
+temperature(1) = s_throat.temperature / sqrt(expansionRatio);
+error_M(1) = exiterror(gas, temperature(1), s_throat, expansionRatio);
 
 % Point 2
-temperature_2 = s_throat.temperature / 2;
-error_M_2 = exiterror(gas, temperature_2, s_throat, expansionRatio);
+temperature(2) = s_throat.temperature / 2;
+error_M(2) = exiterror(gas, temperature(2), s_throat, expansionRatio);
 
 % Point 3
-temperature_3 = s_throat.temperature;
-error_M_3 = exiterror(gas, temperature_3, s_throat, expansionRatio);
+temperature(3) = s_throat.temperature;
+error_M(3) = exiterror(gas, temperature(3), s_throat, expansionRatio);
 
-n = 0;
+numericalMethod = MullersMethod("setsupersonicexitconditions", tolerance, 100, temperature, error_M, 'min');
+
 while 1
-    n = n + 1;
-    if n > 100
-        disp("convergence failed")
-        break;
-    end
-    q = (temperature_1 - temperature_2) / (temperature_2 - temperature_3);
-    a = q * error_M_1 - q * (1 + q) * error_M_2 + q ^ 2 * error_M_3;
-    b = (2 * q + 1) * error_M_1 - (1 + q) ^ 2 * error_M_2 + q ^ 2 * error_M_3;
-    c = (1 + q) * error_M_1;
-    sqrtDelta = sqrt(b ^ 2 - 4 * a * c);
-    denom(1) = (b + sqrtDelta);
-    denom(2) = (b - sqrtDelta);
-    temperature_0 = min(temperature_1 - (temperature_1 - temperature_2) * (2 * c) ./ denom);
+    temperature_0 = numericalMethod.findnewX;
 
     if temperature_0 <= 0
-        temperature_0 = min([temperature_1, temperature_2, temperature_3]) / 3;
-        if temperature_1 <= 0
+        temperature_0 = min([temperature(1), temperature(2), temperature(3)]) / 3;
+        if temperature(1) <= 0
             disp("error")
             break;
         end
     end
 
     error_M_0 = exiterror(gas, temperature_0, s_throat, expansionRatio);
-
-    temperature_3 = temperature_2;
-    error_M_3 = error_M_2;
-    temperature_2 = temperature_1;
-    error_M_2 = error_M_1;
-    temperature_1 = temperature_0;
-    error_M_1 = error_M_0;
-
-    if abs(error_M_1) < Tolerance
+    
+    numericalMethod.updateXY(temperature_0, error_M_0);
+    if numericalMethod.checkconvergence
         break;
     end
 end

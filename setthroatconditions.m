@@ -2,35 +2,31 @@ function gas = setthroatconditions(gas)
 import Gas.*
 
 % Declaration of states.
+state_1 = State(gas);
 s_stagnation = gas.stagnation;
-s_throat = State(gas);
 
 % Error declarations.
-Tolerance = 1e-12;
-error_V = Tolerance * 10;
-error_V_old = error_V;
+tolerance = 1e-12;
+error_V = tolerance * 10;
 error_V_abs = 0;
 
 % Initial estimation of critical pressure.
 
-n = 0;
-while abs(error_V) > Tolerance
-    if abs(error_V_old / error_V) < 1
-        n = n + 1;
-        if n > 2
-            disp("convergence failed")
-            break;
-        end
-    else
-        n = 0;
+numericalMethod = ErrorCorrectedMethod("setthroatconditions", tolerance, 100);
+
+while 1
+    error_V_abs = error_V_abs + (1 - gas.Mach);
+
+    pressure = s_stagnation.pressure * (1  + (s_stagnation.k - 1) / 2 * (1 + error_V_abs) ^ 2) ^ ((- s_stagnation.k) / (s_stagnation.k - 1));
+    numericalMethod.findnewX(pressure);
+
+    setpressureisentropic(gas, pressure, state_1);
+    error_V = (gas.soundspeed - gas.velocity) / gas.soundspeed; % Checking for convergence
+    
+    numericalMethod.updateXY(pressure, error_V);
+    if numericalMethod.checkconvergence;
+        break;
     end
-    error_V_old = error_V;
-
-    error_V_abs = error_V_abs + (1 - s_throat.Mach);
-    s_throat.pressure = s_stagnation.pressure * (1  + (s_stagnation.k - 1) / 2 * (1 + error_V_abs) ^ 2) ^ ((- s_stagnation.k) / (s_stagnation.k - 1));
-    setpressureisentropic(gas, s_throat.pressure);
-    s_throat = State(gas);
-
-    error_V = (s_throat.soundspeed - s_throat.velocity) / s_throat.soundspeed; % Checking for convergence
 end
+s_throat = State(gas);
 end

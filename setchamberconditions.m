@@ -32,6 +32,7 @@ while abs(error_E) > Tolerance
     if abs(error_E_old / error_E) < 1
         n = n + 1;
         if n > 2
+            disp("convergence failed in setchamberconditions with error = " + error_E);
             break;
         end
     else
@@ -48,34 +49,3 @@ while abs(error_E) > Tolerance
     error_E = (s_preHeat.totEnergy + heat_delta - s_postHeat.totEnergy) / (s_preHeat.totEnergy + heat_delta); % Checking for convergence
 end
 end
-
-%{
-
-heat_delta = heatPower / massRateArea;
-temperature_delta = heat_delta / gas.cp;
-s_preHeat = State(gas);
-setState(gas, 'T', s_preHeat.temperature + temperature_delta, 'P', s_preHeat.pressure);
-s_postHeat = State(gas);
-temperature_min = s_preHeat.temperature;
-temperature_max = s_postHeat.temperature;
-for i = 1:20
-    temperature_12 = (temperature_min + temperature_max) / 2;
-    setState(gas, 'T', temperature_12, 'P', s_preHeat.pressure);
-    cp_12 = gas.cp;
-    setState(gas, s_preHeat);
-    temperature_delta = heat_delta / cp_12;
-    setState(gas, 'T', s_preHeat.temperature + temperature_delta, 'P', s_preHeat.pressure);
-    s_postHeat = State(gas);
-    error_S = (s_postHeat.entropy - (s_preHeat.entropy + heat_delta / temperature_12)) / s_postHeat.entropy; % Checking for convergence
-    if abs(error_S) < 1e-6
-        break;
-    end
-    if error_S < 0 % Range redefinition
-        temperature_min = temperature_12;
-    else
-        temperature_max = temperature_12;
-    end
-end
-setState(gas, 'velocity', s_injection.velocity * s_injection.density / gas.density);
-end
-%}
