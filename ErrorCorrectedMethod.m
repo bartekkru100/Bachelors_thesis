@@ -7,7 +7,7 @@ classdef ErrorCorrectedMethod < NumericalMethod
     methods (Access = protected)
 
         function X_0 = findnewX_subclass(this, X_0)
-            X_0;
+            X_0 = cell2mat(X_0);
         end
 
         function updateXY_subclass(this, X_0, Y_0)

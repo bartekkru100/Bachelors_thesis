@@ -1,25 +1,32 @@
 classdef Gas < handle
 
-    % Property names are the same as Cantera's Solution class method names
-    % expcept the _mass suffix. State class properties always refer to the
-    % mass variant. Velocity property was added for convenience.
+    % This class is intended to work as a shell around Cantera's own
+    % Solution class, to make working with it easier for isentropic flow.
+    % Additionally it can store phase diagrams. Property names are the same
+    % as Cantera's Solution class method names except the _mass suffix
+    % since state class properties always refer to the mass variant.
+
+%==========================================================================
+
+    % Object fields
 
     properties (Access = public)
-        solution;
-        phaseDiagrams;
+        solution; % Object of Cantera's Solution class
+        phaseDiagrams; % A phase diagram object
     end
 
     properties (Access = private)
-        solutionSource;
-        phaseDiagramSource;
-        vel;
-        isMassFlowDimenstionless;
+        solutionSource; % Path of the source file for the solution object
+        phaseDiagramSource; % Path for phase diagram source
+        vel; % Velocity
     end
 
     methods (Access = public)
 
-        % Constructor takes a previously defined Solution or State Object
-        % and copies its properties
+%==========================================================================
+
+        % Constructor takes file paths for sources or a prevously defined
+        % Gas object as a template.
 
         function gas = Gas(source, velocity)
             % Path for default constructor
@@ -49,11 +56,17 @@ classdef Gas < handle
             end
         end
 
-        function value = temperature(gas)
-            value = temperature(gas.solution);
-        end
+%==========================================================================
 
-        function value = pressure(gas)
+% Functions that return gas properties
+% Names should be self explanatory, if not then please check the
+% Cantera documentation page.
+
+function value = temperature(gas)
+    value = temperature(gas.solution);
+end
+
+function value = pressure(gas)
             value = pressure(gas.solution);
         end
 
@@ -127,6 +140,11 @@ classdef Gas < handle
             value = gas.vel * density(gas.solution);
         end
 
+%==========================================================================
+
+    % This checks the state of matter of a given species on the phase
+    % diagram
+
         function hasCondensation = hasCondensation(gas)
             import PhaseDiagram.*
 
@@ -141,6 +159,10 @@ classdef Gas < handle
             end
         end
 
+%==========================================================================
+
+        % This calculates the stagnation state
+
         function s_stagnation = stagnation(gas)
             import Gas.*
             state_1 = State(gas);
@@ -148,14 +170,18 @@ classdef Gas < handle
             setstate(gas, state_1);
         end
 
-        function s_macVelocity = maxvelocity(gas)
+%==========================================================================
+
+        % This calculates the gas state for maximum possible expansion
+
+        function s_maxVelocity = maxvelocity(gas)
             import Gas.*
             state_1 = State(gas);
-            pressure = 1;
+            pressure = 1e-8;
             while 1
                 try
                     setpressureisentropic(gas, pressure);
-                    s_macVelocity = State(gas);
+                    s_maxVelocity = State(gas);
                     pressure = pressure / 10;
                 catch
                     setstate(gas, state_1);
@@ -165,6 +191,10 @@ classdef Gas < handle
         end
     end
 
+%==========================================================================
+
+    % WIP This imports phase diagrams from files
+
     methods (Access = private)
         function importphasediagram(gas)
             gas.phaseDiagrams
@@ -173,19 +203,39 @@ classdef Gas < handle
 
     methods (Static, Access = public)
 
+%==========================================================================
+
+        % Universal gas constant
+
         function R_universal = R_universal()
             R_universal = 8314.46261815324;
         end
 
+%==========================================================================
+
+        % Similar functionality to Cantera's own set() function, can also take
+        % a State object for convenience.
+
         function gas = setstate(gas, property1, value1, property2, value2, property3, value3, property4, value4)
             import State.*
             import Gas.*
+
+            % If one of the arguments is a State or Gas object, it copies
+            % the mass fractions, temperature, pressure and velocity
+            % automatically
+
             if ismember(class(property1), ['Gas', 'State'])
                 state = property1;
                 set(gas.solution, 'Y', state.massFractions, 'T', state.temperature, 'P', state.pressure);
                 gas.vel = state.velocity;
                 return;
             else
+
+%--------------------------------------------------------------------------
+
+                % Inputs are converted into two arrays that store property
+                % symbol (same naming as Cantera) and the value.
+
                 n = 0;
                 if nargin > 2
                     n = n + 1;
@@ -211,6 +261,11 @@ classdef Gas < handle
                     end
                 end
 
+%--------------------------------------------------------------------------
+
+                % Since velocity is a Gas and not a Solution property it
+                % needs separate code to look for it.
+
                 if ismember('velocity', propertyArr)
                     index = find(strcmp('velocity', propertyArr));
                     gas.vel = cell2mat(valueArr(index));
@@ -218,6 +273,8 @@ classdef Gas < handle
                     propertyArr(index) = [];
                     n = n - 1;
                 end
+
+                % Values are fed into Cantera's Set() function.
 
                 if n == 1
                     set(gas.solution, cell2mat(propertyArr(1)), cell2mat(valueArr(1)));
@@ -231,6 +288,10 @@ classdef Gas < handle
             end
         end
 
+%==========================================================================
+
+        % Sets velocity at constant entropy
+
         function gas = setvelocityisentropic(gas, newVelocity)
             import Gas.*
             import State.*
@@ -238,27 +299,26 @@ classdef Gas < handle
             setenthalpyisentropic(gas, newEnthalpy);
         end
 
-        % Sets temperature, keeping entropy constant
-        % Current state of the gas and target temperature of the gas are given.
-        % Pressure is first estimated assuming isentropic process. The initial
-        % estimation is inaccurate, because the specific heat ratio (k) changes with
-        % temperature. Bisection method is used to find an intermediate k that
-        % would keep the entropy constant.
+%==========================================================================
+
+        % Sets temperature at constant entropy
+
         function gas = settemperatureisentropic(gas, temperature_2)
             import Gas.*
 
-            % Declaration of states.
             state_1 = State(gas);
-            state_2 = State(gas);
-            state_2_old = state_2;
-
-            % Error declarations
-            tolerance = 1e-12;
-            error_S_abs = 0;
 
             % Initial estimation of pressure after the process.
 
-            numericalMethod = ErrorCorrectedMethod("settemperatureisentropic_stage1", tolerance, 100);
+            % Using error correction method.
+
+            tolerance = 1e-12;
+            maxIterations = 10;
+            error_S_abs = 0;
+
+            numericalMethod = ErrorCorrectedMethod("settemperatureisentropic_stage1", tolerance, maxIterations);
+            numericalMethod.setX_min(0);
+            numericalMethod.disablewarnings;
 
             while 1
                 error_S_abs = error_S_abs + (state_1.entropy - gas.entropy);
@@ -266,10 +326,7 @@ classdef Gas < handle
                                                       exp(error_S_abs / state_1.R_specific));
                 numericalMethod.findnewX(pressure);
 
-                set(gas.solution, 'T', temperature_2, 'P', pressure);
-                state_2 = State(gas);
-
-                error_S = (state_1.entropy - gas.entropy) / state_1.entropy; % Checking for convergence
+                error_S = error_temperatureisentropic(gas, temperature_2, pressure(2), state_1);
 
                 numericalMethod.updateXY(state_2.pressure, error_S);
                 if numericalMethod.checkconvergence()
@@ -277,23 +334,29 @@ classdef Gas < handle
                 end
             end
 
-            % If the estimation was not within tolerance, Muller's position
-            % method is used
+%--------------------------------------------------------------------------
+
+            % If the estimation was not within tolerance, Muller's method
+            % is used
 
             if ~numericalMethod.hasconverged
-                
+
+                maxIterations = 100;
+
                 % Point 1
-                pressure(1) = state_2.pressure;
+                pressure(1) = state_1.pressure;
                 error_S(1) = error_temperatureisentropic(gas, temperature_2, pressure(1), state_1);
+
                 % Point 2
-                pressure(2) = (state_2.pressure + numericalMethod.get.X_0_old) / 2;
+                pressure(2) = (state_1.pressure + numericalMethod.get.X_0_old) / 2;
                 error_S(2) = error_temperatureisentropic(gas, temperature_2, pressure(2), state_1);
 
                 % Point 3
                 pressure(3) = numericalMethod.get.X_0_old;
                 error_S(3) = error_temperatureisentropic(gas, temperature_2, pressure(3), state_1);
 
-                numericalMethod = MullersMethod("settemperatureisentropic_stage2", tolerance, 100, pressure, error_S, 'min');
+                numericalMethod = MullersMethod("settemperatureisentropic_stage2", tolerance, maxIterations, pressure, error_S, 'min');
+                numericalMethod.setX_min(0);
 
                 while 1
 
@@ -311,29 +374,29 @@ classdef Gas < handle
             gas.vel = sqrt(2 * (state_1.totEnergy - gas.enthalpy));
         end
 
-        % Sets ethalpy, keeping entropy constant
-        % Works very similar to setTemperatureIsentropic, the function first
-        % estimates the value of temperature after the process using the relation:
-        % dh = C_p * dT, then using a relation dh = dP / rho and bisection method
-        % to find an intermediate density that would keep entropy constant.
+%==========================================================================
+
+        % Sets ethalpy at constant entropy
 
         function gas = setenthalpyisentropic(gas, enthalpy_2)
             import Gas.*
 
-            % Declaration of states.
             state_1 = State(gas);
-            pressure_min = 0.1;%gas.maxvelocity.pressure;
 
-            % Error declarations
+            % Initial estimation of pressure after the process.
+
+            % Using error correction method.
+
             tolerance = 1e-12;
             maxIterations = 10;
             error_H_abs = 0;
 
-            % Initial estimation of pressure after the process.
             delta_enthalpy = enthalpy_2 - state_1.enthalpy;
             delta_enthalpy_calc = delta_enthalpy;
 
-            numericalMethod = ErrorCorrectedMethod("setenthalpyisentropic_stage1", tolerance, 100);
+            numericalMethod = ErrorCorrectedMethod("setenthalpyisentropic_stage1", tolerance, maxIterations);
+            numericalMethod.setX_min(0);
+            numericalMethod.disablewarnings;
 
             while 1
 
@@ -343,43 +406,44 @@ classdef Gas < handle
 
                 numericalMethod.findnewX(pressure);
 
-                setpressureisentropic_still(gas, pressure, state_1);
-                delta_enthalpy_calc = gas.enthalpy - state_1.enthalpy;
-
-                error_H = (enthalpy_2 - gas.enthalpy) / enthalpy_2;
+                error_H = error_enthalpyisentropic(gas, enthalpy_2, pressure, state_1);
 
                 numericalMethod.updateXY(pressure, error_H);
                 if numericalMethod.checkconvergence
                     break;
                 end
+                delta_enthalpy_calc = gas.enthalpy - state_1.enthalpy;
             end
 
-            % If the estimation was not within tolerance, Muller's position
-            % method is used
-            if ~numericalMethod.hasconverged
+%--------------------------------------------------------------------------
 
-                pressure_min = gas.maxvelocity.pressure;
+            % If the estimation was not within tolerance, Muller's method
+            % is used
+
+            if numericalMethod.hasfailed
+
+                maxIterations = 100;
 
                 % Point 1
-                pressure(1) = pressure;
+                pressure(1) = state_1.pressure;
                 error_H(1) = error_enthalpyisentropic(gas, enthalpy_2, pressure(1), state_1);
 
                 % Point 2
-                pressure(2) = (pressure(1) + numericalMethod.get.Y_0_old) / 2;
+                pressure(2) = (state_1.pressure + numericalMethod.get.X_0_old) / 2;
                 error_H(2) = error_enthalpyisentropic(gas, enthalpy_2, pressure(2), state_1);
 
                 % Point 3
-                pressure(3) = numericalMethod.get.Y_0_old;
+                pressure(3) = numericalMethod.get.X_0_old;
                 error_H(3) = error_enthalpyisentropic(gas, enthalpy_2, pressure(3), state_1);
 
-                numericalMethod = MullersMethod("setenthalpyisentropic_stage2", tolerance, 100, pressure, error_H, 'min');
+                numericalMethod = MullersMethod("setenthalpyisentropic_stage2", tolerance, maxIterations, pressure, error_H, 'min');
+                numericalMethod.setX_min(0);
 
                 while 1
                     pressure = numericalMethod.findnewX;
-                    if pressure <= 0
-                        pressure = pressure_min;
-                    end
+
                     error_H = error_enthalpyisentropic(gas, enthalpy_2, pressure, state_1);
+                    
                     numericalMethod.updateXY(pressure, error_H);
                     if numericalMethod.checkconvergence
                         break;
@@ -388,6 +452,11 @@ classdef Gas < handle
             end
             gas.vel = sqrt(2 * (state_1.totEnergy - gas.enthalpy));
         end
+
+%==========================================================================
+
+        % Sets pressure at constant entropy, updates velocity automatically
+        % calls setpressureisentropic_still() function under the hood
 
         function gas = setpressureisentropic(gas, pressure_2, state_1)
             import Gas.*
@@ -399,12 +468,23 @@ classdef Gas < handle
             gas.vel = sqrt(2 * (state_1.totEnergy - gas.enthalpy));
         end
 
+%--------------------------------------------------------------------------
+        
+        % Sets pressure at constant entropy, doesn't update velocity, but
+        % checks for some potential errors while trying to calculate
+        % pressure
+
         function gas = setpressureisentropic_still(gas, pressure_2, state_1)
             import Gas.*
+            
+            % Cantera has some problems calculating state variables at low
+            % pressures, if the change fails the first time, it's repeated
+            % in smaller increments.
 
             try
                 set(gas.solution, 'P', pressure_2, 'S', gas.entropy);
             catch
+                % Immidiately catches negative and NaN values of pressure
                 if pressure_2 <= 0
                     error("Pressure must be positive.")
                 elseif isnan(pressure_2)
@@ -414,14 +494,15 @@ classdef Gas < handle
                 n = 2;
                 while hasError
                     hasError = false;
-                    setstate(gas, state_1);
+                    set(gas.solution, 'T', state_1.temperature, 'P', state_1.pressure);
                     try
+                        % Increments are logarithmic in scale
                         for pressure = logspace(log10(state_1.pressure), log10(pressure_2), n)
                             set(gas.solution, 'P', pressure, 'S', gas.entropy);
                         end
                     catch
                         n = n * 2;
-                        if n > 1024
+                        if n > 64
                             error("Can't calculate isentropic pressure.")
                         end
                         hasError = true;
@@ -434,17 +515,19 @@ classdef Gas < handle
 
     methods (Static, Access = private)
 
-        function error_S = error_temperatureisentropic(gas, temperature_2, pressure, state_1)
-            import Gas.*
+%==========================================================================
 
+        % These methods are called from other functions to make code
+        % cleaner
+
+        function error_S = error_temperatureisentropic(gas, temperature_2, pressure, state_1)
             set(gas.solution, 'T', temperature_2, 'P', pressure);
             error_S = (state_1.entropy - gas.entropy) / state_1.entropy; % Checking for convergence
         end
 
         function error_H = error_enthalpyisentropic(gas, enthalpy_2, pressure, state_1)
             import Gas.*
-
-            setstate(gas, state_1);
+            set(gas.solution, 'T', state_1.temperature, 'P', state_1.pressure);
             setpressureisentropic_still(gas, pressure, state_1);
             error_H = (enthalpy_2 - gas.enthalpy) / enthalpy_2;
         end

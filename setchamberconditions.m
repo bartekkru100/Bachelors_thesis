@@ -5,9 +5,9 @@
 % For non-chemical engines, the heat is added to the gas at constant
 % pressure
 function setchamberconditions(gas, s_injection, heatPower)
-setstate(gas, s_injection);
 import State.*
 import Gas.*
+
 equilibrate(gas.solution, 'HP');
 setstate(gas, 'velocity', s_injection.massFlowFlux / gas.density);
 if nargin == 2 || heatPower == 0

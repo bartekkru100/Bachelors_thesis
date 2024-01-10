@@ -1,45 +1,54 @@
 function [expansionRatio, s_separation]  = checkforseparation(gas, s_throat, s_atmo, separationTolerance)
 import Gas.*
 
-tolerance = 1e-12;
+% Searching for separation using the criteria from the paper by
+% Ralf H. Stark.
+
 % Using Muller's method
+
+tolerance = 1e-12;
+iterationLimit = 100;
+
 % Point 1
 pressure(1) = s_atmo.pressure * 0.7;
-error_Mach(1) = separationerror(gas, pressure(1), s_throat, s_atmo, separationTolerance);
+error_Mach(1) = error_separation(gas, pressure(1), s_throat, s_atmo, separationTolerance);
 
 % Point 2
 pressure(2) = s_atmo.pressure * 0.45;
-error_Mach(2) = separationerror(gas, pressure(2), s_throat, s_atmo, separationTolerance);
+error_Mach(2) = error_separation(gas, pressure(2), s_throat, s_atmo, separationTolerance);
 
 % Point 3
 pressure(3) = s_atmo.pressure * 0.2;
-error_Mach(3) = separationerror(gas, pressure(3), s_throat, s_atmo, separationTolerance);
+error_Mach(3) = error_separation(gas, pressure(3), s_throat, s_atmo, separationTolerance);
 
 numericalMethod = MullersMethod("checkforseparation", tolerance, 100, pressure, error_Mach, 'min');
+numericalMethod.setX_min_max(0, s_atmo.pressure);
 
-n = 0;
 while 1
-
     pressure_0 = numericalMethod.findnewX();
 
-    if pressure_0 <= 0
-        pressure_0 = s_atmo.pressure * 0.2 / n;
-    end
-    error_Mach_0 = separationerror(gas, pressure_0, s_throat, s_atmo, separationTolerance);
+    error_Mach_0 = error_separation(gas, pressure_0, s_throat, s_atmo, separationTolerance);
 
     numericalMethod.updateXY(pressure_0, error_Mach_0);
     if numericalMethod.checkconvergence;
         break;
     end
 end
-%distanceFromSeparation = (s_throat.pressure - gas.pressure) / gas.pressure;
+
+%--------------------------------------------------------------------------
+
+% Output
+
 expansionRatio = s_throat.massFlowFlux / gas.massFlowFlux;
 s_separation = State(gas);
-s_separation.pressure / s_atmo.pressure
 setstate(gas, s_throat);
 end
 
-function error_Mach = separationerror(gas, pressure, s_throat, s_atmo, separationTolerance)
+%--------------------------------------------------------------------------
+
+% Function that checks for the above mentioned criteria
+
+function error_Mach = error_separation(gas, pressure, s_throat, s_atmo, separationTolerance)
 import Gas.*
 setpressureisentropic(gas, pressure, s_throat);
 
