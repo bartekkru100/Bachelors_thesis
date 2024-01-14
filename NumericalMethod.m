@@ -62,12 +62,12 @@ classdef NumericalMethod < handle
         function shouldBreak = checkconvergence(this)
             this.nIterations = this.nIterations + 1;
             if this.shouldBreak
+            elseif abs(this.Y_0) < this.tolerance
+                this.shouldBreak = true;
             elseif this.nIterations == 1
             else
                 convergence = abs(this.Y_0 / this.Y_0_old);
-                if abs(this.Y_0) < this.tolerance
-                    this.shouldBreak = true;
-                elseif this.nIterations > this.iterationLimit
+                if this.nIterations > this.iterationLimit
                     this.hasFailed = true;
                 elseif convergence >= 1
                     if this.convergenceCounter < 1

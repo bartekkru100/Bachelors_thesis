@@ -11,6 +11,7 @@ clc, clear, cleanup
 atmo = Gas('air.yaml');
 s_atmo = State(atmo);
 s_atmo.pressure = oneatm;
+%s_atmo.pressure = 20.64e6;
 setstate(atmo, s_atmo);
 s_atmo = State(atmo);
 expansionRatio = 77.5;

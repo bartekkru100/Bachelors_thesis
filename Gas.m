@@ -161,13 +161,65 @@ function value = pressure(gas)
 
 %==========================================================================
 
+        % This looks for sonic conditions (v = a)
+
+        function [s_sonic, s_stagnation] = sonic(gas, revert)
+            import Gas.*
+
+            state_1 = State(gas);
+            s_stagnation = gas.stagnation;
+
+            % Using error correction method.
+
+            tolerance = 1e-12;
+            maxIterations = 100;
+            error_V_abs = -1;
+
+            numericalMethod = ErrorCorrectedMethod("setthroatconditions", tolerance, maxIterations);
+
+            while 1
+                error_V_abs = error_V_abs + (1 - gas.Mach);
+
+                pressure = s_stagnation.pressure * (1  + (s_stagnation.k - 1) / 2 * (1 + error_V_abs) ^ 2) ^ ((- s_stagnation.k) / (s_stagnation.k - 1));
+                numericalMethod.findnewX(pressure);
+
+                setpressureisentropic(gas, pressure, s_stagnation);
+                error_V = (gas.soundspeed - gas.velocity) / gas.soundspeed; % Checking for convergence
+
+                numericalMethod.updateXY(pressure, error_V);
+                if numericalMethod.checkconvergence
+                    break;
+                end
+            end
+
+            s_sonic = State(gas);
+
+            if nargin == 1
+            elseif revert == true
+                setstate(gas, state_1);
+            elseif revert == false
+            else
+                error("revert needs to take a logical value.");
+            end
+        end
+
+%==========================================================================
+
         % This calculates the stagnation state
 
-        function s_stagnation = stagnation(gas)
+        function s_stagnation = stagnation(gas, revert)
             import Gas.*
             state_1 = State(gas);
+
             s_stagnation = State(setvelocityisentropic(gas, 0));
-            setstate(gas, state_1);
+
+            if nargin == 1
+            elseif revert == true
+                setstate(gas, state_1);
+            elseif revert == false
+            else
+                error("revert needs to take a logical value.");
+            end
         end
 
 %==========================================================================
@@ -187,6 +239,16 @@ function value = pressure(gas)
                     setstate(gas, state_1);
                     return;
                 end
+            end
+
+            if nargin == 1
+                setstate(gas, s_maxVelocity);
+            elseif revert == true
+                setstate(gas, state_1);
+            elseif revert == false
+                setstate(gas, s_maxVelocity);
+            else
+                error("revert needs to take a logical value.");
             end
         end
     end
