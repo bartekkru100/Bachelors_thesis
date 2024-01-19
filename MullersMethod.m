@@ -1,5 +1,7 @@
 classdef MullersMethod < NumericalMethod
 
+    % Muller's method
+
     properties (Access = private)
         min_max;
     end
@@ -25,9 +27,9 @@ classdef MullersMethod < NumericalMethod
             denom(1) = (b + sqrtDelta);
             denom(2) = (b - sqrtDelta);
             if this.min_max.current == this.min_max.value.max
-                X_0 = real(max(this.X(1) - (this.X(1) - this.X(2)) * (2 * c) ./ denom));
+                X_0 = max(this.X(1) - (this.X(1) - this.X(2)) * (2 * c) ./ denom);
             elseif this.min_max.current == this.min_max.value.min
-                X_0 = real(min(this.X(1) - (this.X(1) - this.X(2)) * (2 * c) ./ denom));
+                X_0 = min(this.X(1) - (this.X(1) - this.X(2)) * (2 * c) ./ denom);
             else
                 error("Specify 'min' or 'max'");
             end

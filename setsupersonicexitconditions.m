@@ -1,4 +1,4 @@
-function expansionRatio = setsupersonicexitconditions(gas, s_throat, expansionRatio)
+function s_supersonicExit = setsupersonicexitconditions(gas, s_throat, expansionRatio)
 import Gas.*
 
 % This function calculates the exit state assuming a completely supersonic
@@ -35,7 +35,17 @@ while 1
         break;
     end
 end
+
+%--------------------------------------------------------------------------
+
+% Output
+
+s_supersonicExit = State(gas);
 end
+
+%--------------------------------------------------------------------------
+
+% Checks for mass conservation at the exit
 
 function error_M = error_exit(gas, pressure, s_throat, expansionRatio)
 import Gas.*

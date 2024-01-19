@@ -1,51 +1,52 @@
-% Author: Bartosz Kruszona, 2023
-
-% Combustion
-% Cantera solves for chemical equilibrium
-% For non-chemical engines, the heat is added to the gas at constant
-% pressure
 function setchamberconditions(gas, s_injection, heatPower)
 import State.*
 import Gas.*
 
-equilibrate(gas.solution, 'HP');
-setstate(gas, 'velocity', s_injection.massFlowFlux / gas.density);
-if nargin == 2 || heatPower == 0
-    return;
-end
+% This sets the chemical equilibrium and apllies heat from a heating
+% element
 
-% Declaration of states.
-s_preHeat = State(gas);
-s_postHeat = State(gas);
+if ~(nargin == 2 || heatPower == 0)
 
-% Error declarations.
-Tolerance = 1e-12;
-error_E = Tolerance * 10;
-error_E_old = error_E;
-error_E_abs = 0;
+    s_preHeat = State(gas);
 
-% Estimation of final temperature
-heat_delta = heatPower / gas.massFlowFlux;
+    % Error declarations.
+    tolerance = 1e-12;
+    maxIterations = 10;
+    error_E_abs = 0;
 
-n = 0;
-while abs(error_E) > Tolerance
-    if abs(error_E_old / error_E) < 1
-        n = n + 1;
-        if n > 2
-            disp("convergence failed in setchamberconditions with error = " + error_E);
+    heat_delta = heatPower / gas.massFlowFlux;
+
+    numericalMethod = ErrorCorrectedMethod("setchamberconditions", tolerance, maxIterations);
+    numericalMethod.setX_min(0);
+
+    while 1
+        error_E_abs = error_E_abs + (s_preHeat.totEnergy + heat_delta - gas.totEnergy);
+        temperature = s_preHeat.temperature + (heat_delta + error_E_abs) / s_preHeat.cp;
+
+        temperature = numericalMethod.findnewX(temperature);
+
+        error_E = error_heatingelement(gas, temperature, s_preHeat, s_injection, heat_delta);
+
+        numericalMethod.updateXY(temperature, error_E);
+        if numericalMethod.checkconvergence
             break;
         end
-    else
-        n = 0;
     end
-    error_E_old = error_E;
-    
-    error_E_abs = error_E_abs + (s_preHeat.totEnergy + heat_delta - s_postHeat.totEnergy);
-    s_postHeat.temperature = s_preHeat.temperature + (heat_delta + error_E_abs) / s_preHeat.cp;
-    setstate(gas, 'T', s_postHeat.temperature, 'P', s_preHeat.pressure);
-    setstate(gas, 'velocity', s_injection.massFlowFlux / gas.density);
-    s_postHeat = State(gas);
-
-    error_E = (s_preHeat.totEnergy + heat_delta - s_postHeat.totEnergy) / (s_preHeat.totEnergy + heat_delta); % Checking for convergence
 end
+
+equilibrate(gas.solution, 'HP');
+setstate(gas, 'velocity', s_injection.massFlowFlux / gas.density);
+end
+
+%--------------------------------------------------------------------------
+
+% The function checks for energy conservation
+
+function error_E = error_heatingelement(gas, temperature, s_preHeat, s_injection, heat_delta)
+import Gas.*
+
+setstate(gas, 'T', temperature, 'P', s_preHeat.pressure);
+setstate(gas, 'velocity', s_injection.massFlowFlux / gas.density);
+
+error_E = (s_preHeat.totEnergy + heat_delta - gas.totEnergy) / (s_preHeat.totEnergy + heat_delta);
 end

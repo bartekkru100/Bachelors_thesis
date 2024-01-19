@@ -1,16 +1,22 @@
 classdef Unit
 
+    % This class stores unit data for conversions
+
     properties (Access = public)
 
         type;
         name;
         symbol;
         multiplier;
-        offset;
+        offset; % Used for temperatures
 
     end
 
     methods (Access = public)
+
+%==========================================================================
+
+        % The constructor
 
         function unit = Unit(name, type, symbol, multiplier, offset)
             if nargin == 1
@@ -37,6 +43,10 @@ classdef Unit
             Value = unitValue * unit.multiplier - unit.offset;
         end
 
+%==========================================================================
+
+        % This loads unit info from a file
+
         function unit = readfromfile(unit, fileName)
             import Unit.*
             
@@ -50,6 +60,10 @@ classdef Unit
         end
 
     end
+
+%==========================================================================
+
+    % Enum of unit types
 
     methods (Static)
         

@@ -140,7 +140,7 @@ shockPosition = s_throat.massFlowFlux / gas.massFlowFlux;
 setstate(gas, s_subsonicExit);
 end
 
-
+%--------------------------------------------------------------------------
 
 % Function that find the subsonic gas state at the exit and checks for mass conservation.
 
@@ -154,7 +154,7 @@ setstate(gas, 'H', enthalpy, 'P', s_atmo.pressure, 'velocity', velocity);
 error_M = (s_supersonicExit.massFlowFlux - gas.massFlowFlux) / s_supersonicExit.massFlowFlux;
 end
 
-
+%--------------------------------------------------------------------------
 
 % Function that finds the state of the gas after the shock and checks for
 % mass conservation.

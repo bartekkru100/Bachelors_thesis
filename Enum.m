@@ -1,5 +1,7 @@
 classdef Enum
 
+    % This class is used as a replacement for Matlab's own enumerations 
+
     properties (Access = protected)
         values;
         names;

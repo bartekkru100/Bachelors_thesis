@@ -32,9 +32,9 @@ classdef Gas < handle
             if nargin == 0 % default constructor
                 source = 'GRI30';
             elseif class(source) == "Gas"
-                gas.source = source.src;
-            else
                 gas.source = source;
+            else
+                gas.source = source.src;
             end
             gas.source = source;
             
@@ -57,7 +57,7 @@ classdef Gas < handle
             end
 
             if class(source) == "Gas"
-                setstate(gas, source);
+                setstate();
             else
                 gas.vel = 0;
             end

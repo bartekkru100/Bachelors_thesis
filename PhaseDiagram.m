@@ -1,17 +1,28 @@
 classdef PhaseDiagram
+
+    % This class stores data about a substance's phase diagram
+
     properties(Access = private)
-        line_lg
-        line_sg
-        line_ls
-        src;
-        species;
+        line_lg % liquid-gas curve
+        line_sg % solid-gas curve
+        line_ls % liquid-solid curve
+        src; % source directory
+        species; % name of the species
     end
 
     methods(Access = public)
+        
+%==========================================================================
+
+        % The construction takes 3 curve files from a chosen directory
+
         function phaseDiagram = PhaseDiagram(source)
             import PhaseDiagram.*
 
+            phaseDiagram.src = source;
             sourceFolder = dir(source);
+            test = (strfind(source, '\'));
+            phaseDiagram.species = source(test(end) + 1 : end);
             nFiles = size(sourceFolder, 1);
             for j = 3 : nFiles
                 fileName = lower(sourceFolder(j).name);
@@ -30,25 +41,33 @@ classdef PhaseDiagram
             end
         end
 
+%==========================================================================
+
+        % Getters
+
         function src = source(phaseDiagram)
-            src = phaseDiagram.src
+            src = phaseDiagram.src;
         end
 
         function name = speciesName(phaseDiagram)
-            name = phaseDiagram.species
+            name = phaseDiagram.species;
         end
+
+%==========================================================================
+
+        % This checks the what a state of matter is at a given point on P-T
+        % diagram
 
         function stateOfMatter = checkstateofmatter(phaseDiagram, point)
             import PhaseDiagram.*
 
             isCondensed = false;
-            if isbounded(point.temperature, phaseDiagram.line_lg.temperature)
-                if point.pressure > getPressure(point.temperature, phaseDiagram.line_lg)
-                    getPressure(point.temperature, phaseDiagram.line_lg)
+            if isbounded(point.pressure, phaseDiagram.line_lg.pressure)
+                if point.temperature < getTemperature(point.pressure, phaseDiagram.line_lg)
                     isCondensed = true;
                 end
-            elseif isbounded(point.temperature, phaseDiagram.line_sg.temperature)
-                if point.pressure > getPressure(point.temperature, phaseDiagram.line_sg)
+            elseif isbounded_max(point.pressure, phaseDiagram.line_sg.pressure)
+                if point.temperature < getTemperature(point.pressure, phaseDiagram.line_sg)
                     isCondensed = true;
                 end
             end
@@ -63,6 +82,10 @@ classdef PhaseDiagram
             end
         end
     end
+
+%==========================================================================
+
+    % Enum
 
     methods (Static, Access = public)
         function stateOfMatter = stateofmatter()
@@ -82,6 +105,11 @@ classdef PhaseDiagram
     end
 
     methods (Static, Access = private)
+        
+%==========================================================================
+
+        % Some utility functions for inside use
+
         function line = table2line(Table)
             line.temperature = table2array(Table(:,1));
             line.pressure = table2array(Table(:,2));
@@ -95,12 +123,28 @@ classdef PhaseDiagram
             end
         end
 
+        function isBounded = isbounded_min(value, array)
+            if value >= min(array)
+                isBounded = true;
+            else
+                isBounded = false;
+            end
+        end
+
+        function isBounded = isbounded_max(value, array)
+            if value <= max(array)
+                isBounded = true;
+            else
+                isBounded = false;
+            end
+        end
+
         function pressure = getPressure(temperature, line)
-            pressure = interp1(line.temperature, line.pressure, temperature, "spline");
+            pressure = interp1(line.temperature, line.pressure, temperature, "makima");
         end
 
         function temperature = getTemperature(pressure, line)
-            temperature = interp1(line.pressure, line.temperature, pressure, "spline");
+            temperature = interp1(line.pressure, line.temperature, pressure, "makima");
         end
     end
 end

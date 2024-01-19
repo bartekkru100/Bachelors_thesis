@@ -8,27 +8,27 @@ import State.*
 
 clc, clear, cleanup
 
-atmo = Gas('air.yaml');
+atmo = Gas('air');
 s_atmo = State(atmo);
-s_atmo.pressure = oneatm;
-%s_atmo.pressure = 20.64e6;
+s_atmo.pressure = 1;
 setstate(atmo, s_atmo);
 s_atmo = State(atmo);
-expansionRatio = 77.5;
-contractionRatio = 10;
+expansionRatio = 100;
+contractionRatio = 15;
 Tolerance = 1e-12;
-heatPower = 0;
+heatPowerArea = 0;
+thrust = 10e3;
+efficiency = 1;
 
-gas = Gas('R1highT.yaml');
+gas = Gas('R1highT');
 %gas = Gas();
-
 %setstate(gas, 'Y', 'CH4:1,O2:3.6', 'T', 150, 'P', 300e5);
-setstate(gas, 'Y', 'H2:1,O2:6.03', 'T', 150, 'P', 20.64e6);
-%setstate(gas, 'Y', 'H2O:1', 'T', 1200, 'P', 10e5);
+%setstate(gas, 'Y', 'H2:1,O2:6.03', 'T', 150, 'P', 20.64e6);
+%setstate(gas, 'Y', 'N2:1', 'T', 293, 'P', 240.6e3);
+setstate(gas, 'Y', 'H2O:1', 'T', 1000, 'P', 1000);
 %setstate(gas, 'Y', 'POSF7688:1,O2: 2.36', 'T', 150, 'P', 26.7e6);
 %setstate(gas, 'Y', 'POSF7688:1,O2: 2.63', 'T', 200, 'P', 24.52e6);
 s_injection = State(gas);
-
 setchamberconditions(gas, s_injection)
 s_chamber = State(gas);
 
@@ -45,23 +45,27 @@ for i = 1 : 20
     setinjectionconditions(gas, s_injection, contractionRatio);
     s_injection = State(gas);
 
-    setchamberconditions(gas, s_injection, heatPower);
+    setchamberconditions(gas, s_injection, heatPowerArea);
     s_chamber = State(gas);
 
     massFlowFlux_old = s_throat.massFlowFlux;
 end
 
-s_maxVelocity = gas.maxvelocity;
+s_maxVelocity = gas.maxvelocity();
 
 displaygasinfo(s_injection, "Injection", contractionRatio);
 displaygasinfo(s_chamber, "Chamber", contractionRatio);
 displaygasinfo(s_throat, "Throat", 1);
 
+s_supersonicExit = setsupersonicexitconditions(gas, s_throat, expansionRatio);
+%findshockatexit_pressure(gas, s_maxVelocity, s_throat, s_stagnation, s_supersonicExit, expansionRatio)
 
+expansionRatio_condensation = findcondensation(gas, s_throat, s_stagnation, s_maxVelocity);
 
 if s_stagnation.pressure > s_atmo.pressure
-    [expansionRatio_shockAtExit_1, s_shockAtExit_1, s_shockAtExit_2, exitShockfound] = checkforshockatexit(gas, s_throat, s_atmo, s_maxVelocity, 'min');
-    expansionRatio_shockAtThroat = checkforidealexpansion(gas, s_throat, s_atmo);
+    [expansionRatio_shockAtExit, exitShockfound] = findshockatexit(gas, s_throat, s_atmo, s_maxVelocity, 'min');
+    expansionRatio_shockAtThroat = findidealexpansion(gas, s_throat, s_atmo);
+    s_supersonicExit = setsupersonicexitconditions(gas, s_throat, expansionRatio);
 
     if s_throat.pressure < s_atmo.pressure
 
@@ -69,11 +73,10 @@ if s_stagnation.pressure > s_atmo.pressure
             [s_exit, s_chamber] = setsubsonicexitconditions(gas, s_chamber, s_throat, s_atmo, expansionRatio, contractionRatio);
             flowState = "Fully subsonic";
 
-        elseif expansionRatio <= expansionRatio_shockAtExit_1
-            [expansionRatio_shockAtExit_2, s_shockAtExit_1, s_shockAtExit_2, exitShockfound] = checkforshockatexit(gas, s_throat, s_atmo, s_maxVelocity, max);
+        elseif expansionRatio <= expansionRatio_shockAtExit
+            [expansionRatio_shockAtExit_2, exitShockfound] = findshockatexit(gas, s_throat, s_atmo, s_maxVelocity, max);
 
             if expansionRatio >= expansionRatio_shockAtExit_2
-                expansionRatio = setsupersonicexitconditions(gas, s_throat, expansionRatio);
                 flowState = "Fully supersonic";
 
             else
@@ -81,10 +84,13 @@ if s_stagnation.pressure > s_atmo.pressure
                 flowState = "Normal shock inside the nozzle";
 
             end
+        else
+            [shockPosition, s_shock_1, s_shock_2] = shockposition(gas, s_atmo, s_supersonicExit, s_throat);
+            flowState = "Normal shock inside the nozzle";
+
         end
     else
-        if expansionRatio <= expansionRatio_shockAtExit_1
-            expansionRatio = setsupersonicexitconditions(gas, s_throat, expansionRatio);
+        if expansionRatio <= expansionRatio_shockAtExit
             flowState = "Fully supersonic";
 
         else
@@ -106,11 +112,19 @@ if flowState == "Fully supersonic"
     end
 end
 
+if gas.hasCondensation
+    flowState = flowState + ", condensation in the nozzle";
+end
+
 displaygasinfo(s_exit, "exit", expansionRatio);
 
 %setsubsonicexitconditions(gas, s_chamber, s_atmo);
-specificImpulse = specificimpulse(gas, s_atmo);
-
+specificImpulse_s = specificimpulse(gas, s_atmo, true);
+specificImpulse_ms = specificimpulse(gas, s_atmo, false);
+massFlow = thrust / specificImpulse_ms
+A_chamber = massFlow / s_chamber.massFlowFlux; 
+heatPower = heatPowerArea * A_chamber / efficiency;
+flowState
 
 
 function displaygasinfo(gas, name, areaRatio)

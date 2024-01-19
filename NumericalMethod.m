@@ -117,9 +117,9 @@ classdef NumericalMethod < handle
             this.X_0_old = this.X_0;
              % Calls to a virtual method defined in a subclass
             if nargin == 1
-                this.X_0 = findnewX_subclass(this);
+                this.X_0 = real(findnewX_subclass(this));
             else
-                this.X_0 = findnewX_subclass(this, varargin);
+                this.X_0 = real(findnewX_subclass(this, varargin));
             end
 
 %--------------------------------------------------------------------------

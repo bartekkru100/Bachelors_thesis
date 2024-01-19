@@ -1,4 +1,7 @@
 classdef ErrorCorrectedMethod < NumericalMethod
+
+    % Error corrected method
+
     properties (Access = protected)
         Y_abs;
         Y_abs_old;
