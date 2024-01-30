@@ -1,0 +1,5 @@
+Type:		ratio
+Name:		partspermillion
+Symbol:		ppm
+Multiplier:	1e-6
+Offset:		0

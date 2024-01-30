@@ -2,7 +2,10 @@ import Gas.*
 import Unit.*
 import PhaseDiagram.*
 import State.*
+path_Classes = [pwd, '\Classes'];
+path_Functions = [pwd, '\Functions'];
 
+addpath(path_Classes, path_Functions)
 % Test file to test parts of code
 
 
@@ -23,9 +26,9 @@ efficiency = 1;
 gas = Gas('R1highT');
 %gas = Gas();
 %setstate(gas, 'Y', 'CH4:1,O2:3.6', 'T', 150, 'P', 300e5);
-%setstate(gas, 'Y', 'H2:1,O2:6.03', 'T', 150, 'P', 20.64e6);
+setstate(gas, 'Y', 'H2:1,O2:6.03', 'T', 150, 'P', 20.64e6);
 %setstate(gas, 'Y', 'N2:1', 'T', 293, 'P', 240.6e3);
-setstate(gas, 'Y', 'H2O:1', 'T', 1000, 'P', 1000);
+%setstate(gas, 'Y', 'H2O:1', 'T', 1000, 'P', 1000);
 %setstate(gas, 'Y', 'POSF7688:1,O2: 2.36', 'T', 150, 'P', 26.7e6);
 %setstate(gas, 'Y', 'POSF7688:1,O2: 2.63', 'T', 200, 'P', 24.52e6);
 s_injection = State(gas);

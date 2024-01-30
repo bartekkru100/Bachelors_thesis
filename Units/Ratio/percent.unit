@@ -1,0 +1,5 @@
+Type:		ratio
+Name:		percent
+Symbol:		%
+Multiplier:	1e-2
+Offset:		0

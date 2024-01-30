@@ -32,9 +32,9 @@ classdef Gas < handle
             if nargin == 0 % default constructor
                 source = 'GRI30';
             elseif class(source) == "Gas"
-                gas.source = source;
-            else
                 gas.source = source.src;
+            else
+                gas.source = source;
             end
             gas.source = source;
             
@@ -57,7 +57,7 @@ classdef Gas < handle
             end
 
             if class(source) == "Gas"
-                setstate();
+                setstate(gas, source);
             else
                 gas.vel = 0;
             end
@@ -318,6 +318,17 @@ classdef Gas < handle
 
         function R_universal = R_universal()
             R_universal = 8314.46261815324;
+        end
+
+%==========================================================================
+
+        function combined = combine(gasArray)
+            combined = Gas(gasArray(1).src)
+            for gas = gasArray
+                if gas.src == gasArray(1).src
+                    error("Source files for combined gasses need to match");
+                end
+            end
         end
 
 %==========================================================================

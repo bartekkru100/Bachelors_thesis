@@ -1,0 +1,5 @@
+Type:		power
+Name:		horsepower
+Symbol:		hp
+Multiplier:	746
+Offset:		0	

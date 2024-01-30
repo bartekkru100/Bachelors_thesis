@@ -1,0 +1,5 @@
+Type:		temperature
+Name:		Kelvin
+Symbol:		K
+Multiplier:	1
+Offset:		0	

@@ -1,0 +1,5 @@
+Type:		temperature
+Name:		Rankine
+Symbol:		R
+Multiplier:	0.55555555555555555555555555555556
+Offset:		0	

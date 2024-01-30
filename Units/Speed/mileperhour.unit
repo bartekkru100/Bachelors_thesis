@@ -1,0 +1,5 @@
+Type:		speed
+Name:		mileperhour
+Symbol:		mi/h
+Multiplier:	0.44704
+Offset:		0	

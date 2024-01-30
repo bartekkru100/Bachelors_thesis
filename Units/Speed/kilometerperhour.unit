@@ -1,0 +1,5 @@
+Type:		speed
+Name:		kilometersperhour
+Symbol:		km/h
+Multiplier:	1/3.6
+Offset:		0	

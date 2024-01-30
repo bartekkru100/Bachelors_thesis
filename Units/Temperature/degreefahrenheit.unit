@@ -1,0 +1,5 @@
+Type:		temperature
+Name:		degreesFahrenheit
+Symbol:		°F
+Multiplier:	0.55555555555555555555555555555556
+Offset:		-255.37222222222222222222222222222	

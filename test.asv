@@ -1,0 +1,5 @@
+clc, clear
+addpathall(pwd, ".git", true);
+
+unitArr = Unit.empty;
+folders = cha(ls('Units'))

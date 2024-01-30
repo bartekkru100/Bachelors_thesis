@@ -1,0 +1,5 @@
+Type:		energy
+Name:		kilocalorie
+Symbol:		cal
+Multiplier:	4.184e3
+Offset:		0	

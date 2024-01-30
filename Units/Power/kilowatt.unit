@@ -1,0 +1,5 @@
+Type:		power
+Name:		kiloWatt
+Symbol:		kW
+Multiplier:	1e3
+Offset:		0	

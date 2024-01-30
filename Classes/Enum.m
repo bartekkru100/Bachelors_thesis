@@ -25,6 +25,7 @@ classdef Enum
         end
 
         function value = fromstr(this, str)
+            str = convertStringsToChars(str);
             value = this.values.(str);
         end
 

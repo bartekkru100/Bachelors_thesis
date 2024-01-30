@@ -1,0 +1,5 @@
+Type:		temperature
+Name:		degreesCelsius
+Symbol:		°C
+Multiplier:	1
+Offset:		-273.15	

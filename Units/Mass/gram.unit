@@ -1,0 +1,5 @@
+Type:		mass
+Name:		gram
+Symbol:		g
+Multiplier:	1e-3
+Offset:		0	

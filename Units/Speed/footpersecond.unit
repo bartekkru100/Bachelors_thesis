@@ -1,0 +1,5 @@
+Type:		speed
+Name:		footpersecond
+Symbol:		ft/s
+Multiplier:	0.3408
+Offset:		0	
