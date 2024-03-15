@@ -10,7 +10,7 @@ if ~(nargin == 2 || heatPower == 0)
     s_preHeat = State(gas);
 
     % Error declarations.
-    tolerance = 1e-12;
+    tolerance = 1e-9;
     maxIterations = 10;
     error_E_abs = 0;
 
@@ -33,8 +33,8 @@ if ~(nargin == 2 || heatPower == 0)
         end
     end
 end
-
 equilibrate(gas.solution, 'HP');
+%setisentropic
 setstate(gas, 'velocity', s_injection.massFlowFlux / gas.density);
 end
 

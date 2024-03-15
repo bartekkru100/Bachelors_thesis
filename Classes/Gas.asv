@@ -295,7 +295,7 @@ classdef Gas < handle
 
         % This calculates the gas state for maximum possible expansion
 
-        function s_maxVelocity = maxvelocity(gas, revert)
+        function s_maxVelocity = maxvelocity(gas)
             import Gas.*
             state_1 = State(gas);
             pressure = 1;
@@ -633,9 +633,7 @@ classdef Gas < handle
         % Sets pressure at constant entropy, updates velocity automatically
         % calls setpressureisentropic_still() function under the hood
 
-        function gas = setarearatioisentropic(gas, areaRatio_2)
-            s_sonic = gas.sonic;
-        end
+        
 
 %==========================================================================
 

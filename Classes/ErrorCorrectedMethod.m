@@ -1,4 +1,4 @@
-classdef ErrorCorrectedMethod < NumericalMethod
+classdef ErrorCorrectedMethod < RootFindingMethod
 
     % Error corrected method
 

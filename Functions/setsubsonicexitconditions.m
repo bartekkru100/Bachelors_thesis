@@ -3,7 +3,7 @@ import Gas.*
 
 % Finds the chamber and exit conditions for a subsonic flow
 
-tolerance = 1e-12;
+tolerance = 1e-9;
 maxIterations = 100;
 
 velocity(1) = 0;
@@ -53,5 +53,6 @@ s_chamber.massFlowFlux = gas.massFlowFlux;
 setpressureisentropic(gas, s_atmo.pressure, s_chamber);
 s_subsonicExit.massFlowFlux = gas.massFlowFlux;
 
-error_M = (s_subsonicExit.massFlowFlux - s_chamber.massFlowFlux * contractionRatio / expansionRatio) / s_subsonicExit.massFlowFlux;
+massFlowFlux_calc = s_chamber.massFlowFlux * contractionRatio / expansionRatio;
+error_M = (s_subsonicExit.massFlowFlux - massFlowFlux_calc) / s_subsonicExit.massFlowFlux;
 end

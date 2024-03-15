@@ -3,7 +3,7 @@ import Gas.*
 
 % Bisection method:
 
-tolerance = 1e-12;
+tolerance = 1e-9;
 iterationLimit = 100;
 
 pressure(1) = s_stagnation.pressure;

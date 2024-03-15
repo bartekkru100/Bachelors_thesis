@@ -1,4 +1,4 @@
-classdef BisectionMethod < NumericalMethod
+classdef BisectionMethod < RootFindingMethod
 
     % Bisection method
 

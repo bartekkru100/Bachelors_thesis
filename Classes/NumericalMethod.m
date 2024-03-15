@@ -15,10 +15,12 @@ classdef NumericalMethod < handle
         % Current root approximation
         Y_0;
         X_0;
+        error_0;
 
         % Approximation from the previous iteration
         Y_0_old;
         X_0_old;
+        error_0_old;
 
         % Approximation bounds, any points calculated beyond those will
         % need to be recalculated using a different method
@@ -43,7 +45,8 @@ classdef NumericalMethod < handle
             this.location = location;
             this.tolerance = tolerance;
             this.iterationLimit = iterationLimit;
-            this.Y_0_old = tolerance * 10;
+            this.error_0_old = tolerance * 100;
+            this.error_0 = tolerance * 10;
             this.nIterations = 0;
             this.convergenceCounter = 1;
             this.shouldBreak = false;
@@ -61,12 +64,13 @@ classdef NumericalMethod < handle
 
         function shouldBreak = checkconvergence(this)
             this.nIterations = this.nIterations + 1;
+            this.errorCalculation;
             if this.shouldBreak
-            elseif abs(this.Y_0) < this.tolerance
+            elseif abs(this.error_0) < this.tolerance
                 this.shouldBreak = true;
             elseif this.nIterations == 1
             else
-                convergence = abs(this.Y_0 / this.Y_0_old);
+                convergence = abs(2 * this.error_0 / this.error_0_old);
                 if this.nIterations > this.iterationLimit
                     this.hasFailed = true;
                 elseif convergence >= 1
@@ -77,13 +81,13 @@ classdef NumericalMethod < handle
                     if this.convergenceCounter > 1000
                         this.hasFailed = true;
                     end
-                elseif this.convergenceCounter < 1
+                elseif convergence < 1
                     this.convergenceCounter = this.convergenceCounter * sqrt(convergence);
                 end
             end
             if this.hasFailed
                 if this.warningsEnabled
-                    printconvergencewarning(this, this.Y_0);
+                    printconvergencewarning(this, this.error_0);
                 end
                 this.shouldBreak = true;
             end
@@ -143,9 +147,10 @@ classdef NumericalMethod < handle
                     this.X_0 = (3 * this.X_max + this.X_min) / 4;
                 end
             elseif isnan(this.X_0)
-                this.X_0 = this.X_0_old;
-                this.hasFailed = true;
-                this.shouldBreak = true;
+                %this.X_0 = this.X_0_old;
+                this.X_0 = mean(this.X);
+                %this.hasFailed = true;
+                %this.shouldBreak = true;
             end
             X_0 = this.X_0;
         end
@@ -263,6 +268,8 @@ classdef NumericalMethod < handle
     % Virtual methods called inside the main class methods
 
     methods (Access = protected, Abstract)
+
+        errorCalculation(this)
 
         findnewX_subclass(this, varargin)
 

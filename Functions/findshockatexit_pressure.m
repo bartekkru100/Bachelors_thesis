@@ -10,7 +10,7 @@ import Gas.*
 
 % Using Muller's method
 
-tolerance = 1e-12;
+tolerance = 1e-9;
 iterationLimit = 100;
 
 % Point 1
