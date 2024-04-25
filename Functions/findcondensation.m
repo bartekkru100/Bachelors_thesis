@@ -1,4 +1,4 @@
-function [expansionRatio_condensation, condensationFound] = findcondensation(gas, s_throat, s_stagnation, s_maxVelocity)
+function [expansionRatio_condensation, condensationFound] = findcondensation(gas)
 import Gas.*
 
 % Bisection method:
@@ -6,14 +6,14 @@ import Gas.*
 tolerance = 1e-9;
 iterationLimit = 100;
 
-pressure(1) = s_stagnation.pressure;
+pressure(1) = gas.s_stagnation.pressure;
 setpressureisentropic(gas, pressure(1));
 error_P(1) = 1;
 if gas.hasCondensation
     error_P(1) = - error_P(1);
 end
 
-pressure(2) = s_maxVelocity.pressure;
+pressure(2) = gas.maxvelocity.pressure;
 setpressureisentropic(gas, pressure(2));
 error_P(2) = 1;
 if gas.hasCondensation
@@ -26,7 +26,7 @@ if error_P(1) ~= error_P(2)
     while 1
         pressure = numericalMethod.findnewX;
 
-        error_P = error_condensation(gas, s_stagnation, numericalMethod);
+        error_P = error_condensation(gas, numericalMethod);
         numericalMethod.updateXY(pressure, error_P);
         if numericalMethod.checkconvergence
             break;
@@ -44,8 +44,8 @@ end
 
 % Output
 
-expansionRatio_condensation = s_throat.massFlowFlux / gas.massFlowFlux;
-setstate(gas, s_throat);
+expansionRatio_condensation = gas.s_sonic.massFlowFlux / gas.massFlowFlux;
+setstate(gas, gas.s_sonic);
 end
 
 %--------------------------------------------------------------------------
@@ -54,7 +54,7 @@ end
 % The error is defined as the distance between bisection points, if
 % condensation happens at the pressure midpoint, the sign is changed to negative.
 
-function error_P = error_condensation(gas, s_stagnation, numericalMethod)
+function error_P = error_condensation(gas, numericalMethod)
 import Gas.*
 
 error_P = abs(numericalMethod.get.X(1) - numericalMethod.get.X(2));

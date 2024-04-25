@@ -4,74 +4,75 @@ import Gas.*
 import State.*
 
 propellantArray = solverInputs.propellantArray;
+gas = solverInputs.gas;
 atmo = solverInputs.atmo;
 expansionRatio = solverInputs.expansionRatio;
 contractionRatio = solverInputs.contractionRatio;
-heatPowerArea = solverInputs.heatPowerArea;
+heatMass = solverInputs.heatMass;
 temperature_chamber_max = solverInputs.temperature_chamber_max;
+mass_mole = solverInputs.mass_mole;
 
 tolerance = 1e-9;
 iterationLimit = 100;
 
-mode = 'mass';
 
 % Point 1
 ratio(1) = 1;
-gas = combine('new', propellantArray, [1, ratio(1)], mode);
+gas = combine(gas, propellantArray, [1, ratio(1)], mass_mole);
 s_start = State(gas);
-value(1) = calculateperformance_optimal(gas, s_start, expansionRatio, heatPowerArea, atmo);
+performance(1) = calculateperformance_optimal(gas, s_start, expansionRatio, contractionRatio, heatMass, atmo);
 
 % Point 2
 ratio(2) = 4;
-gas = combine(gas, propellantArray, [1, ratio(2)], mode);
+gas = combine(gas, propellantArray, [1, ratio(2)], mass_mole);
 s_start = State(gas);
-value(2) = calculateperformance_optimal(gas, s_start, expansionRatio, heatPowerArea, atmo);
+performance(2) = calculateperformance_optimal(gas, s_start, expansionRatio, contractionRatio, heatMass, atmo);
 
 % Point 3
 ratio(3) = 7;
-gas = combine(gas, propellantArray, [1, ratio(3)], mode);
+gas = combine(gas, propellantArray, [1, ratio(3)], mass_mole);
 s_start = State(gas);
-value(3) = calculateperformance_optimal(gas, s_start, expansionRatio, heatPowerArea, atmo);
+performance(3) = calculateperformance_optimal(gas, s_start, expansionRatio, contractionRatio, heatMass, atmo);
 
-numericalMethod = LocalMinMax("optimalmixture_optimal", tolerance, 100, ratio, value, 'max');
+numericalMethod = LocalMinMax("optimalmixture_optimal", tolerance, 100, ratio, performance, 'max');
 numericalMethod.setX_min_max(0, 10);
 while 1
     ratio = numericalMethod.findnewX;
-    gas = combine(gas, propellantArray, [1, ratio], mode);
+    gas = combine(gas, propellantArray, [1, ratio], mass_mole);
     s_start = State(gas);
-    [value, s_chamber] = calculateperformance_optimal(gas, s_start, expansionRatio, heatPowerArea, atmo);
+    [performance, solverOutputs] = calculateperformance_optimal(gas, s_start, expansionRatio, contractionRatio, heatMass, atmo);
 
-    numericalMethod.updateXY(ratio, value);
+    numericalMethod.updateXY(ratio, performance);
     if numericalMethod.checkconvergence
         break;
     end
 end
-if s_chamber.temperature > temperature_chamber_max
+if solverOutputs.s_chamber.temperature > temperature_chamber_max
     % Point 1
     ratio(1) = 1;
-    gas = combine(gas, propellantArray, [1, ratio(1)], mode);
+    gas = combine(gas, propellantArray, [1, ratio(1)], mass_mole);
     s_start = State(gas);
-    error_T(1) = calculatetemperature(gas, s_start, expansionRatio, contractionRatio, heatPowerArea, atmo, temperature_chamber_max);
+    [~, ~, error_T(1)] = calculatetemperature(gas, s_start, expansionRatio, contractionRatio, heatMass, atmo, temperature_chamber_max);
 
     % Point 2
     ratio(2) = 4;
-    gas = combine(gas, propellantArray, [1, ratio(2)], mode);
+    gas = combine(gas, propellantArray, [1, ratio(2)], mass_mole);
     s_start = State(gas);
-    error_T(2) = calculatetemperature(gas, s_start, expansionRatio, contractionRatio, heatPowerArea, atmo, temperature_chamber_max);
+    [~, ~, error_T(2)] = calculatetemperature(gas, s_start, expansionRatio, contractionRatio, heatMass, atmo, temperature_chamber_max);
 
     % Point 3
     ratio(3) = 7;
-    gas = combine(gas, propellantArray, [1, ratio(3)], mode);
+    gas = combine(gas, propellantArray, [1, ratio(3)], mass_mole);
     s_start = State(gas);
-    error_T(3) = calculatetemperature(gas, s_start, expansionRatio, contractionRatio, heatPowerArea, atmo, temperature_chamber_max);
+    [~, ~, error_T(3)] = calculatetemperature(gas, s_start, expansionRatio, contractionRatio, heatMass, atmo, temperature_chamber_max);
 
     numericalMethod = MullersMethod("optimalmixture_maxtemp", tolerance, 100, ratio, error_T, 'min');
-    numericalMethod.setX_min_max(0, 10);
+    numericalMethod.setX_min_max(0, 100);
     while 1
         ratio = numericalMethod.findnewX;
-        gas = combine(gas, propellantArray, [1, ratio], mode);
+        gas = combine(gas, propellantArray, [1, ratio], mass_mole);
         s_start = State(gas);
-        error_T = calculatetemperature(gas, s_start, expansionRatio, contractionRatio, heatPowerArea, atmo, temperature_chamber_max);
+        [performance, solverOutputs, error_T] = calculatetemperature(gas, s_start, expansionRatio, contractionRatio, heatMass, atmo, temperature_chamber_max);
 
         numericalMethod.updateXY(ratio, error_T);
         if numericalMethod.checkconvergence
@@ -79,38 +80,47 @@ if s_chamber.temperature > temperature_chamber_max
         end
     end
 end
-ratio
-
-i = 1;
-for ratio = 1:0.05:6
-    i = i + 1;
-    gas = combine(gas, propellantArray, [1, ratio], mode);
-    s_start = State(gas);
-    log(i, :) = [ratio, calculateperformance_optimal(gas, s_start, expansionRatio, heatPowerArea, atmo)];
+% log = zeros(100,2);
+% i = 0;
+% for ratio = 2 : 0.05 : 6
+%     i = i + 1;
+%     gas = combine(gas, propellantArray, [1, ratio(1)], mass_mole);
+%     s_start = State(gas);
+%     [performance, solverOutputs] = calculateperformance_optimal(gas, s_start, expansionRatio, contractionRatio, heatMass, atmo);
+%     log(i,:) = [ratio, performance];
+% end 
+solverOutputs.ratio = [1, ratio];
 end
 
-
-end
-
-function [specificImpulse_ms, s_chamber] = calculateperformance_optimal(gas, s_start, expansionRatio, heatPowerArea, atmo)
-tolerance = 1e-9;
-s_injection = s_start;
-setchamberconditions(gas, s_injection)
+function [performance, solverOutputs, temperature] = calculateperformance_optimal(gas, s_injection, expansionRatio, contractionRatio, heatMass, atmo)
+import Gas.*
+setchamberconditions(gas, heatMass);
+setarearatioisentropic(gas, contractionRatio, "sub");
 s_chamber = State(gas);
-[s_throat, s_stagnation] = gas.sonic;
-s_supersonicExit = setsupersonicexitconditions(gas, s_throat, expansionRatio);
-specificImpulse_ms = specificimpulse(gas, atmo, false);
-velocity_star = s_chamber.pressure / s_throat.massFlowFlux;
-%output = s_supersonicExit.velocity;
-output = specificImpulse_ms;
+s_throat = gas.sonic;
+s_supersonicExit = setsupersonicexitconditions(gas, expansionRatio);
+
+effectiveExhaustVelocity = effectiveexhaustvelocity(gas, atmo);
+temperature = s_chamber.temperature;
+performance = effectiveExhaustVelocity;
+solverOutputs.s_chamber = s_chamber;
+solverOutputs.s_throat = s_throat;
+solverOutputs.s_supersonicExit = s_supersonicExit;
+solverOutputs.effectiveExhaustVelocity = effectiveExhaustVelocity;
 end
 
-function temperature = calculatetemperature(gas, s_start, expansionRatio, contractionRatio, heatPowerArea, atmo, max_temp)
-tolerance = 1e-9;
-s_injection = s_start;
-setchamberconditions(gas, s_injection);
+function [performance, solverOutputs, temperature] = calculatetemperature(gas, s_injection, expansionRatio, contractionRatio, heatMass, atmo, max_temp)
+import Gas.*
+setchamberconditions(gas, heatMass);
+setarearatioisentropic(gas, contractionRatio, "sub");
 s_chamber = State(gas);
-[s_throat, s_stagnation] = gas.sonic;
-s_supersonicExit = setsupersonicexitconditions(gas, s_throat, expansionRatio);
+s_throat = gas.sonic;
+s_supersonicExit = setsupersonicexitconditions(gas, expansionRatio);
+effectiveExhaustVelocity = effectiveexhaustvelocity(gas, atmo);
 temperature = (max_temp - s_chamber.temperature) / max_temp;
+performance = effectiveExhaustVelocity;
+solverOutputs.s_chamber = s_chamber;
+solverOutputs.s_throat = s_throat;
+solverOutputs.s_supersonicExit = s_supersonicExit;
+solverOutputs.effectiveExhaustVelocity = effectiveExhaustVelocity;
 end

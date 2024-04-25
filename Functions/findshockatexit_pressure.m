@@ -1,7 +1,11 @@
-function [pressure_shockAtExit] = findshockatexit_pressure(gas, s_maxVelocity, s_throat, s_stagnation, s_supersonicExit, expansionRatio)
+function [pressure_shockAtExit] = findshockatexit_pressure(gas, s_supersonicExit, expansionRatio)
 import Gas.*
 
-% Searching for an expansion ratio with shock at the exit. For a normal shock
+s_stagnation = gas.stagnation;
+s_throat = gas.sonic;
+s_maxVelocity = gas.maxvelocity;
+
+% Searching for an ambient pressure with shock at the exit. For a normal shock
 % at the exit, the pressure after the shock will be equal to ambient
 % pressure and velocities V_1 and V_2 (before and after the shock) fulfill
 % the relation V_1 = V_throat ^ 2 / V_2. We look for such pairs of V_1 and
@@ -14,15 +18,15 @@ tolerance = 1e-9;
 iterationLimit = 100;
 
 % Point 1
-pressure(1) = s_maxVelocity.pressure;
+pressure(1) = s_supersonicExit.pressure * (2 * s_stagnation.k * s_supersonicExit.Mach ^ 2 - (s_stagnation.k - 1)) / (s_stagnation.k + 1);
 error_M(1) = error_exit(gas, pressure(1), s_throat, s_supersonicExit);
 
 % Point 2
-pressure(2) = s_stagnation.pressure;
+pressure(2) = s_supersonicExit.pressure * (2 * s_throat.k * s_supersonicExit.Mach ^ 2 - (s_throat.k - 1)) / (s_throat.k + 1);
 error_M(2) = error_exit(gas, pressure(2), s_throat, s_supersonicExit);
 
-% Point 3
-pressure(3) = s_throat.pressure;
+% Point 1
+pressure(3) = s_supersonicExit.pressure * (2 * s_maxVelocity.k * s_supersonicExit.Mach ^ 2 - (s_maxVelocity.k - 1)) / (s_maxVelocity.k + 1);
 error_M(3) = error_exit(gas, pressure(3), s_throat, s_supersonicExit);
 
 numericalMethod = MullersMethod("checkfornormalshock_pressure", tolerance, iterationLimit, pressure, error_M, 'max');

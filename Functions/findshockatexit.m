@@ -1,5 +1,7 @@
-function [expansionRatio_shockAtExit, shockFound] = findshockatexit(gas, s_throat, s_atmo, s_maxVelocity, min_max)
+function [expansionRatio_shockAtExit, shockFound] = findshockatexit(gas, s_atmo, min_max)
 import Gas.*
+
+s_throat = gas.sonic;
 
 % Searching for an expansion ratio with shock at the exit. For a normal shock
 % at the exit, the pressure after the shock will be equal to ambient
@@ -17,14 +19,14 @@ tolerance = 1e-4;
 iterationLimit = 10;
 
 % Point 1
-s_shockAtExit_1.pressure(1) = s_maxVelocity.pressure;
+s_shockAtExit_1.pressure(1) = gas.s_maxVelocity.pressure;
 error_M(1) = error_exit(gas, s_shockAtExit_1.pressure(1), s_throat, s_atmo);
 
 % Point 2
 s_shockAtExit_1.pressure(2) = s_throat.pressure;
 error_M(2) = error_exit(gas, s_shockAtExit_1.pressure(2), s_throat, s_atmo);
 
-numericalMethod = BisectionMethod("checkfornormalshock_stage_1", tolerance, iterationLimit, s_shockAtExit_1.pressure, error_M);
+numericalMethod = BisectionMethod("findshockatexit_stage_1", tolerance, iterationLimit, s_shockAtExit_1.pressure, error_M);
 numericalMethod.disablewarnings;
 
 while 1
@@ -57,8 +59,8 @@ error_M(2) = error_exit(gas, s_shockAtExit_1.pressure(2), s_throat, s_atmo);
 s_shockAtExit_1.pressure(3) = numericalMethod.get.X(2);
 error_M(3) = numericalMethod.get.Y(2);
 
-numericalMethod = MullersMethod("checkfornormalshock_stage_2", tolerance, iterationLimit, s_shockAtExit_1.pressure, error_M, min_max);
-numericalMethod.setX_min_max(s_maxVelocity.pressure, s_throat.pressure);
+numericalMethod = MullersMethod("findshockatexit_stage_2", tolerance, iterationLimit, s_shockAtExit_1.pressure, error_M, min_max);
+numericalMethod.setX_min_max(gas.s_maxVelocity.pressure, s_throat.pressure);
 numericalMethod.disablewarnings;
 
 while 1

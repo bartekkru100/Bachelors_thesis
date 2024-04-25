@@ -1,4 +1,4 @@
-function pressure_ideal = findidealexpansion_pressure(s_supersonicExit)
+function pressure_ideal = findidealexpansion_pressure(gas, s_supersonicExit)
 import Gas.*
 
 % Returns an ambient pressure with ideal expansion for a given expansion ratio.

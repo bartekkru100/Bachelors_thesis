@@ -1,5 +1,7 @@
-function [expansionRatio, s_separation]  = checkforseparation(gas, s_throat, s_atmo, separationTolerance)
+function [expansionRatio_separation, s_separation]  = findseparation(gas, s_atmo, separationTolerance)
 import Gas.*
+
+s_throat = gas.sonic;
 
 % Searching for separation using the criteria from the paper by
 % Ralf H. Stark.
@@ -23,13 +25,12 @@ error_Mach(3) = error_separation(gas, pressure(3), s_throat, s_atmo, separationT
 
 numericalMethod = MullersMethod("checkforseparation", tolerance, 100, pressure, error_Mach, 'min');
 numericalMethod.setX_min_max(0, s_atmo.pressure);
-
 while 1
-    pressure_0 = numericalMethod.findnewX();
+    pressure = numericalMethod.findnewX();
 
-    error_Mach_0 = error_separation(gas, pressure_0, s_throat, s_atmo, separationTolerance);
+    error_Mach = error_separation(gas, pressure, s_throat, s_atmo, separationTolerance);
 
-    numericalMethod.updateXY(pressure_0, error_Mach_0);
+    numericalMethod.updateXY(pressure, error_Mach);
     if numericalMethod.checkconvergence;
         break;
     end
@@ -39,7 +40,7 @@ end
 
 % Output
 
-expansionRatio = s_throat.massFlowFlux / gas.massFlowFlux;
+expansionRatio_separation = s_throat.massFlowFlux / gas.massFlowFlux;
 s_separation = State(gas);
 setstate(gas, s_throat);
 end

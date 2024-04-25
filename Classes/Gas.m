@@ -1,6 +1,6 @@
 classdef Gas < handle
 
-    % This class is intended to work as a shell around Cantera's own
+    % This class is intended to work as a wrapper around Cantera's own
     % Solution class, to make working with it easier for isentropic flow.
     % Additionally it can store phase diagrams. Property names are the same
     % as Cantera's Solution class method names except the _mass suffix
@@ -15,9 +15,12 @@ classdef Gas < handle
         phaseDiagrams; % A phase diagram object
     end
 
-    properties (Access = private)
+    properties (Access = public)
         source; % Path of the source file for the solution object and phase diagram
         vel; % Velocity
+        s_sonic; % Stored sonic state
+        s_stagnation; % Stored stagnation state
+        s_maxVelocity % Stored max expansion state
     end
 
     methods (Access = public)
@@ -31,10 +34,10 @@ classdef Gas < handle
             
             if nargin == 0 % default constructor
                 source = 'GRI30';
-            elseif class(source) == "Gas"
+            elseif ismember(class(source), ["Gas", "State"])
                 source = source.src;
             end
-            gas.source = source;
+            gas.source = convertStringsToChars(source);
             
             % The constructor looks for the phases folder inside the main
             % directory.
@@ -54,7 +57,7 @@ classdef Gas < handle
                 end
             end
 
-            if class(source) == "Gas"
+            if ismember(class(source), ["Gas", "State"])
                 setstate(gas, source);
             else
                 gas.vel = 0;
@@ -145,6 +148,19 @@ classdef Gas < handle
             value = gas.vel * density(gas.solution);
         end
 
+        function value = areaRatio(gas)
+            import Gas.*
+            if ~isempty(gas.s_sonic)
+                value = gas.s_sonic.massFlowFlux / gas.massFlowFlux;
+            else
+                value = 0;
+            end
+        end
+
+        function value = speciesNames(gas)
+            value = convertCharsToStrings(speciesNames(gas.solution));
+        end
+
         function value = src(gas)
             value = gas.source;
         end
@@ -176,7 +192,9 @@ classdef Gas < handle
 
             state_1 = State(gas);
 
-            equilibrate(gas.solution, 'HP');
+            tolerance = 1e-9;
+
+            equilibrate(gas.solution, 'HP', 1);
 
             s_equilibrium = State(gas);
 
@@ -193,33 +211,47 @@ classdef Gas < handle
 
         % This looks for sonic conditions (v = a)
 
-        function [s_sonic, s_stagnation] = sonic(gas, revert)
+        function s_sonic = sonic(gas, revert)
             import Gas.*
 
+            if ~isempty(gas.s_sonic) && (abs((gas.s_sonic.entropy - gas.entropy) / gas.s_sonic.entropy) < 1e-8)
+                s_sonic = gas.s_sonic;
+                if nargin == 1
+                elseif revert == true
+                elseif revert == false
+                    setstate(gas, s_sonic);
+                else
+                    error("revert needs to take a logical value.");
+                end
+                return
+            end
+            
             state_1 = State(gas);
             s_stagnation = gas.stagnation;
 
             % Using error correction method.
 
             tolerance = 1e-9;
-            maxIterations = 100;
-            error_V_abs = -1;
+            maxIterations = 10;
+            Mach_offset = 0;
+            error_Mach_abs = 0;
 
             numericalMethod = ErrorCorrectedMethod("sonic_stage_1", tolerance, maxIterations);
             numericalMethod.disablewarnings;
 
             while 1
-                error_V_abs = real(error_V_abs + (1 - gas.Mach));
+                Mach_offset = real(Mach_offset + error_Mach_abs);
 
-                pressure = real(s_stagnation.pressure * (1  + (s_stagnation.k - 1) / 2 * (1 + error_V_abs) ^ 2) ^ ((- s_stagnation.k) / (s_stagnation.k - 1)));
-                numericalMethod.findnewX(pressure);
+                pressure = real(s_stagnation.pressure * (1  + (s_stagnation.k - 1) / 2 * (1 + Mach_offset) ^ 2) ^ ((- s_stagnation.k) / (s_stagnation.k - 1)));
+                pressure = numericalMethod.findnewX(pressure);
 
-                error_V = error_sonic(gas, pressure, state_1);
+                error_Mach = error_sonic(gas, pressure, state_1);
 
-                numericalMethod.updateXY(pressure, error_V);
+                numericalMethod.updateXY(pressure, error_Mach);
                 if numericalMethod.checkconvergence
                     break;
                 end
+                error_Mach_abs = (1 - gas.Mach);
             end
 
 %--------------------------------------------------------------------------
@@ -233,28 +265,25 @@ classdef Gas < handle
 
                 % Point 1
                 pressure(1) = numericalMethod.get.X_0;
-                error_V(1) = numericalMethod.get.Y_0;
+                error_Mach(1) = error_sonic(gas, pressure(1), state_1);
 
                 % Point 2
                 pressure(2) = (numericalMethod.get.X_0 + numericalMethod.get.X_0_old) / 2;
-                error_V(2) = error_sonic(gas, pressure(2), state_1);
+                error_Mach(2) = error_sonic(gas, pressure(2), state_1);
 
                 % Point 3
                 pressure(3) = numericalMethod.get.X_0_old;
-                error_V(3) = numericalMethod.get.Y_0_old;
+                error_Mach(3) = error_sonic(gas, pressure(3), state_1);
 
-                %pressure = pressure(2) *1.0000000175
-                %error_V = error_sonic(gas, pressure, state_1);
-                numericalMethod = MullersMethod("sonic_stage_2", tolerance, maxIterations, pressure, error_V, 'max');
+                numericalMethod = MullersMethod("sonic_stage_2", tolerance, maxIterations, pressure, error_Mach, 'min');
                 numericalMethod.setX_min(0);
 
                 while 1
-
                     pressure = numericalMethod.findnewX;
 
-                    error_V = error_sonic(gas, pressure, state_1);
+                    error_Mach = error_sonic(gas, pressure, state_1);
 
-                    numericalMethod.updateXY(pressure, error_V);
+                    numericalMethod.updateXY(pressure, error_Mach);
                     if numericalMethod.checkconvergence
                         break;
                     end
@@ -262,8 +291,10 @@ classdef Gas < handle
             end
 
             s_sonic = State(gas);
+            gas.s_sonic = s_sonic;
 
             if nargin == 1
+                setstate(gas, state_1);
             elseif revert == true
                 setstate(gas, state_1);
             elseif revert == false
@@ -275,14 +306,29 @@ classdef Gas < handle
 %==========================================================================
 
         % This calculates the stagnation state
-
+        
         function s_stagnation = stagnation(gas, revert)
             import Gas.*
+            
+            if ~isempty(gas.s_stagnation) && abs((gas.s_stagnation.entropy - gas.entropy) / gas.s_stagnation.entropy) < 1e-8
+                s_stagnation = gas.s_stagnation;
+                if nargin == 1
+                elseif revert == true
+                elseif revert == false
+                    setstate(gas, s_stagnation);
+                else
+                    error("revert needs to take a logical value.");
+                end
+                return
+            end
+            
             state_1 = State(gas);
-
+        
             s_stagnation = State(setvelocityisentropic(gas, 0));
-
+            gas.s_stagnation = s_stagnation;
+        
             if nargin == 1
+                setstate(gas, state_1);
             elseif revert == true
                 setstate(gas, state_1);
             elseif revert == false
@@ -297,6 +343,19 @@ classdef Gas < handle
 
         function s_maxVelocity = maxvelocity(gas, revert)
             import Gas.*
+            
+            if ~isempty(gas.s_maxVelocity) && (abs((gas.s_maxVelocity.entropy - gas.entropy) / gas.s_maxVelocity.entropy) < 1e-8)
+                s_maxVelocity = gas.s_maxVelocity;
+                if nargin == 1
+                elseif revert == true
+                elseif revert == false
+                    setstate(gas, s_maxVelocity);
+                else
+                    error("revert needs to take a logical value.");
+                end
+                return
+            end
+
             state_1 = State(gas);
             pressure = 1;
             while 1
@@ -308,9 +367,11 @@ classdef Gas < handle
                     break;
                 end
             end
+            
+            gas.s_maxVelocity = s_maxVelocity;
 
             if nargin == 1
-                setstate(gas, s_maxVelocity);
+                setstate(gas, state_1);
             elseif revert == true
                 setstate(gas, state_1);
             elseif revert == false
@@ -331,9 +392,9 @@ classdef Gas < handle
         end
     end
 
-    methods (Static, Access = public)
-
 %==========================================================================
+
+    methods (Static, Access = public)
 
         % Universal gas constant
 
@@ -483,12 +544,11 @@ classdef Gas < handle
 
             state_1 = State(gas);
 
-            % Initial estimation of pressure after the process.
-
             % Using error correction method.
 
             tolerance = 1e-9;
             maxIterations = 10;
+            S_offset = 0;
             error_S_abs = 0;
 
             numericalMethod = ErrorCorrectedMethod("settemperatureisentropic_stage1", tolerance, maxIterations);
@@ -496,17 +556,18 @@ classdef Gas < handle
             numericalMethod.disablewarnings;
 
             while 1
-                error_S_abs = error_S_abs + (state_1.entropy - gas.entropy);
+                S_offset = S_offset + error_S_abs;
                 pressure = state_1.pressure * ((temperature_2 / state_1.temperature) ^ (state_1.cp / state_1.R_specific) / ...
-                                                      exp(error_S_abs / state_1.R_specific));
-                numericalMethod.findnewX(pressure);
+                                                      exp(S_offset / state_1.R_specific));
+                pressure = numericalMethod.findnewX(pressure);
 
-                error_S = error_temperatureisentropic(gas, temperature_2, pressure(2), state_1);
+                error_S = error_temperatureisentropic(gas, temperature_2, pressure, state_1);
 
-                numericalMethod.updateXY(state_2.pressure, error_S);
+                numericalMethod.updateXY(pressure, error_S);
                 if numericalMethod.checkconvergence()
                     break;
                 end
+                error_S_abs = state_1.entropy - gas.entropy;
             end
 
 %--------------------------------------------------------------------------
@@ -557,8 +618,7 @@ classdef Gas < handle
             import Gas.*
 
             state_1 = State(gas);
-
-            % Initial estimation of pressure after the process.
+            delta_enthalpy = enthalpy_2 - state_1.enthalpy;
 
             % Using error correction method.
 
@@ -566,20 +626,16 @@ classdef Gas < handle
             maxIterations = 10;
             error_H_abs = 0;
 
-            delta_enthalpy = enthalpy_2 - state_1.enthalpy;
-            delta_enthalpy_calc = delta_enthalpy;
-
             numericalMethod = ErrorCorrectedMethod("setenthalpyisentropic_stage1", tolerance, maxIterations);
             numericalMethod.setX_min(0);
             numericalMethod.disablewarnings;
 
             while 1
-
-                error_H_abs = error_H_abs + (delta_enthalpy - delta_enthalpy_calc);
-                temperature = state_1.temperature + (delta_enthalpy + error_H_abs) / state_1.cp;
+                delta_enthalpy = delta_enthalpy + error_H_abs;
+                temperature = state_1.temperature + (delta_enthalpy) / state_1.cp;
                 pressure = state_1.pressure * (temperature / state_1.temperature) ^ (state_1.k / (state_1.k - 1));
 
-                numericalMethod.findnewX(pressure);
+                pressure = numericalMethod.findnewX(pressure);
 
                 error_H = error_enthalpyisentropic(gas, enthalpy_2, pressure, state_1);
 
@@ -587,7 +643,7 @@ classdef Gas < handle
                 if numericalMethod.checkconvergence
                     break;
                 end
-                delta_enthalpy_calc = gas.enthalpy - state_1.enthalpy;
+                error_H_abs = enthalpy_2 - gas.enthalpy;
             end
 
 %--------------------------------------------------------------------------
@@ -629,12 +685,62 @@ classdef Gas < handle
         end
 
 %==========================================================================
-
-        % Sets pressure at constant entropy, updates velocity automatically
-        % calls setpressureisentropic_still() function under the hood
-
-        function gas = setarearatioisentropic(gas, areaRatio_2)
+        
+        % This function calculates the exit state assuming a completely supersonic
+        % flow in the diverging part of the nozzle. Iterating over pressure to
+        % satisfy mass conservation.
+    
+        function gas = setarearatioisentropic(gas, areaRatio_2, sub_super)
+            import Gas.*
+        
             s_sonic = gas.sonic;
+            s_stagnation = gas.stagnation;
+
+            % Using Muller's method
+            tolerance = 1e-9;
+            iterationLimit = 100;
+            if sub_super == "sub"
+            % Point 1
+            pressure(1) = s_stagnation.pressure * (1 - 1 / areaRatio_2 ^ 2.3) + s_sonic.pressure * (1 / areaRatio_2 ^ 2.3);
+            error_M(1) = error_areaisentropic(gas, areaRatio_2, pressure(1));
+        
+            % Point 2
+            pressure(2) = s_stagnation.pressure * (1 - 1 / areaRatio_2 ^ 2.5) + s_sonic.pressure * (1 / areaRatio_2 ^ 2.5);
+            error_M(2) = error_areaisentropic(gas, areaRatio_2, pressure(2));
+        
+            % Point 3
+            pressure(3) = s_stagnation.pressure * (1 - 1 / areaRatio_2 ^ 2.7) + s_sonic.pressure * (1 / areaRatio_2 ^ 2.7);
+            error_M(3) = error_areaisentropic(gas, areaRatio_2, pressure(3));
+        
+            numericalMethod = MullersMethod("setsupersonicexitconditions", tolerance, iterationLimit, pressure, error_M, 'max');
+            numericalMethod.setX_min_max(s_sonic.pressure, s_stagnation.pressure);
+        
+            else
+            % Point 1
+            pressure(1) = s_sonic.pressure * (1 / areaRatio_2 ^ 1.8);
+            error_M(1) = error_areaisentropic(gas, areaRatio_2, pressure(1));
+        
+            % Point 2
+            pressure(2) = s_sonic.pressure * (1 / areaRatio_2 ^ 2);
+            error_M(2) = error_areaisentropic(gas, areaRatio_2, pressure(2));
+        
+            % Point 3
+            pressure(3) = s_sonic.pressure * (1 / areaRatio_2 ^ 2.2);
+            error_M(3) = error_areaisentropic(gas, areaRatio_2, pressure(3));
+        
+            numericalMethod = MullersMethod("setsupersonicexitconditions", tolerance, iterationLimit, pressure, error_M, 'min');
+            numericalMethod.setX_min_max(0, s_sonic.pressure);
+            end
+            while 1
+                pressure = numericalMethod.findnewX;
+        
+                error_M = error_areaisentropic(gas, areaRatio_2, pressure);
+        
+                numericalMethod.updateXY(pressure, error_M);
+                if numericalMethod.checkconvergence
+                    break;
+                end
+            end
         end
 
 %==========================================================================
@@ -713,15 +819,24 @@ classdef Gas < handle
             import Gas.*
 
             set(gas.solution, 'T', state_1.temperature, 'P', state_1.pressure);
-            setpressureisentropic_still(gas, pressure, state_1);
+            setpressureisentropic_still(gas, pressure, state_1.pressure);
             error_H = (enthalpy_2 - gas.enthalpy) / enthalpy_2;
         end
 
-        function error_V = error_sonic(gas, pressure, state_1)
+        function error_Mach = error_sonic(gas, pressure, state_1)
             import Gas.*
 
             setpressureisentropic(gas, pressure, state_1);
-            error_V = (gas.soundspeed - gas.velocity) / gas.soundspeed;
+            error_Mach = 1 - gas.Mach;
+        end
+
+        function error_M = error_areaisentropic(gas, areaRatio_2, pressure)
+            import Gas.*
+            setstate(gas, gas.s_sonic);
+            setpressureisentropic(gas, pressure, gas.s_sonic);
+
+            massFlowFlux_calc = areaRatio_2 * gas.massFlowFlux;
+            error_M = (massFlowFlux_calc - gas.s_sonic.massFlowFlux) / massFlowFlux_calc;
         end
 
     end

@@ -5,6 +5,7 @@ classdef State
     % mass variant. Velocity property was added for convenience.
 
     properties (Access = public)
+        src;
         temperature;
         pressure;
         density;
@@ -24,7 +25,8 @@ classdef State
         Mach;
         R_specific;
         massFlowFlux;
-
+        areaRatio
+        hasCondensation;
     end
     methods (Access = public)
 
@@ -35,6 +37,7 @@ classdef State
             
             % Path for default constructor
             if nargin == 0
+                state.src = "GRI30";
                 state.temperature = 0;
                 state.pressure = 0;
                 state.density = 0;
@@ -54,9 +57,12 @@ classdef State
                 state.Mach = 0;
                 state.R_specific = 0;
                 state.massFlowFlux = 0;
+                state.areaRatio = 0;
+                state.hasCondensation = false;
 
             % Path for a State class input
             elseif ismember(class(gas), ["Gas", "State"])
+                state.src = gas.src;
                 state.temperature = gas.temperature;
                 state.pressure = gas.pressure;
                 state.density = gas.density;
@@ -76,6 +82,8 @@ classdef State
                 state.Mach = gas.Mach;
                 state.R_specific = gas.R_specific;
                 state.massFlowFlux = gas.massFlowFlux;
+                state.areaRatio = gas.areaRatio;
+                state.hasCondensation = gas.hasCondensation;
             end
         end
     end

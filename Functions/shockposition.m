@@ -1,9 +1,9 @@
-function [shockPosition, s_shock_1, s_shock_2, s_subsonicExit] = shockposition(gas, s_atmo, s_supersonicExit, s_throat)
+function [shockPosition, s_shock_1, s_shock_2, s_subsonicExit] = shockposition(gas, s_atmo, s_supersonicExit)
 import State.*
 import Gas.*
-i = 0;
 
 setstate(gas, s_supersonicExit);
+s_throat = gas.sonic;
 
 % Looking for subsonic velocity, for which the mass conservation will be
 % maintained between sonic and subsonic flow at the exit. At exit, the
@@ -28,17 +28,9 @@ s_subsonicExit.velocity(3) = s_throat.velocity;
 error_M(3) = error_exit(gas, s_subsonicExit.velocity(3), s_supersonicExit, s_atmo);
 
 numericalMethod = MullersMethod("shockposition_stage_1", tolerance, iterationLimit, s_subsonicExit.velocity, error_M, 'max');
-
+numericalMethod.setX_min_max(0, s_throat.velocity);
 while 1
     s_subsonicExit.velocity = numericalMethod.findnewX;
-    if s_subsonicExit.velocity < 0
-        s_subsonicExit.velocity = 0;
-    elseif s_subsonicExit.velocity > s_throat.velocity
-        s_subsonicExit.velocity = s_throat.velocity;
-    elseif isnan(s_subsonicExit.velocity)
-        %error("Couldn't find a valid subsonic exit");
-        break;
-    end
 
     error_M = error_exit(gas, s_subsonicExit.velocity, s_supersonicExit, s_atmo);
 
@@ -47,8 +39,6 @@ while 1
         break;
     end
 end
-
-error_M_test = error_M;
 
 s_subsonicExit = State(gas);
 
@@ -105,18 +95,10 @@ s_shock_1.velocity(3) = numericalMethod.get.X(2);;
 error_M(3) = numericalMethod.get.Y(2);
 
 numericalMethod = MullersMethod("shockposition_stage_2.2", tolerance, iterationLimit, s_shock_1.velocity, error_M, 'max');
+%umericalMethod.setX_min_max(s_throat.velocity, s_supersonicExit.velocity);
 
 while 1
     s_shock_1.velocity = numericalMethod.findnewX;
-    if isnan(s_shock_1.velocity)
-        s_shock_1.velocity = max(numericalMethod.get.X) * (1 + (numericalMethod.get.Y_0_old));
-        numericalMethod.setnewX(s_shock_1.velocity);
-    end
-    if s_shock_1.velocity > s_supersonicExit.velocity
-        s_shock_1.velocity = s_supersonicExit.velocity;
-    elseif s_shock_1.velocity < s_throat.velocity
-        s_shock_1.velocity = s_throat.velocity;
-    end
 
     error_M = error_shock(gas, s_shock_1.velocity, s_throat, s_subsonicExit);
     numericalMethod.updateXY(s_shock_1.velocity, error_M);

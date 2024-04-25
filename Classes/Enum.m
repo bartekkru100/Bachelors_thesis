@@ -14,9 +14,13 @@ classdef Enum
     methods (Access = public)
         
         function this = Enum(varargin)
-            this.names = varargin;
+            this.names = string.empty();
             for i = 1 : size(varargin, 2)
-                this.values.(cell2mat(varargin(i))) = i;
+            name = lower(varargin{i});
+            name = strrep(name, ' ', '_');
+            name = strrep(name, ',', '');
+            this.names(i) = varargin{i};
+            this.values.(name) = i;
             end
         end
 
@@ -25,12 +29,12 @@ classdef Enum
         end
 
         function value = fromstr(this, str)
-            str = convertStringsToChars(str);
+            str = convertCharsToStrings(str);
             value = this.values.(str);
         end
 
         function str = tostr(this, value)
-            str = cell2mat(this.names(value));
+            str = this.names(value);
         end
 
     end

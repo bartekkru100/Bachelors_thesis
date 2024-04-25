@@ -7,7 +7,7 @@ classdef NumericalMethod < handle
         tolerance; % Required tolerance.
         iterationLimit; % Self explanatory.
         nPoints; % Number of initial points required to get a root approximation.
-        convergenceCounter; % Keeps tack of whether or not the algorithm is converging.
+        divergenceCounter; % Keeps tack of whether or not the algorithm is converging.
         shouldBreak; % Boolean decides whether or not the algorithm should terminate when checkconvergence() is called.
         warningsEnabled; % Flag indicates whether or not warnings should be displayed on non convergence.
         hasFailed; % Flag indicates whether or not convergence failed.
@@ -48,7 +48,7 @@ classdef NumericalMethod < handle
             this.error_0_old = tolerance * 100;
             this.error_0 = tolerance * 10;
             this.nIterations = 0;
-            this.convergenceCounter = 1;
+            this.divergenceCounter = 1;
             this.shouldBreak = false;
             this.hasFailed = false;
             this.warningsEnabled = true;
@@ -70,19 +70,19 @@ classdef NumericalMethod < handle
                 this.shouldBreak = true;
             elseif this.nIterations == 1
             else
-                convergence = abs(2 * this.error_0 / this.error_0_old);
+                divergence = abs(2 * this.error_0 / this.error_0_old);
                 if this.nIterations > this.iterationLimit
                     this.hasFailed = true;
-                elseif convergence >= 1
-                    if this.convergenceCounter < 1
-                        this.convergenceCounter = 1;
+                elseif divergence >= 1
+                    if this.divergenceCounter < 1
+                        this.divergenceCounter = 1;
                     end
-                    this.convergenceCounter = this.convergenceCounter * convergence;
-                    if this.convergenceCounter > 1000
+                    this.divergenceCounter = this.divergenceCounter * divergence;
+                    if this.divergenceCounter > 1000
                         this.hasFailed = true;
                     end
-                elseif convergence < 1
-                    this.convergenceCounter = this.convergenceCounter * sqrt(convergence);
+                elseif divergence < 1
+                    this.divergenceCounter = this.divergenceCounter * sqrt(divergence);
                 end
             end
             if this.hasFailed
@@ -107,6 +107,8 @@ classdef NumericalMethod < handle
         % Updates X and Y using the new calculated values
 
         function updateXY(this, X_0, Y_0)
+            this.Y_0_old = this.Y_0;
+            this.X_0_old = this.X_0;
             this.X_0 = X_0;
             this.Y_0 = Y_0;
             updateXY_subclass(this, X_0, Y_0); % Call to a virtual method defined in a subclass
@@ -117,8 +119,6 @@ classdef NumericalMethod < handle
         % Gives or takes a new approximation of the root. 
 
         function X_0 = findnewX(this, varargin)
-            this.Y_0_old = this.Y_0;
-            this.X_0_old = this.X_0;
              % Calls to a virtual method defined in a subclass
             if nargin == 1
                 this.X_0 = real(findnewX_subclass(this));
@@ -205,7 +205,7 @@ classdef NumericalMethod < handle
         function reset(this, method, X, Y)
             method = toMethod(method);
             this.nIterations = 0;
-            this.convergenceCounter = 0;
+            this.divergenceCounter = 0;
             switch numberofpoints(method)
                 case 1
                     if nargin == 1
