@@ -1,0 +1,21 @@
+Name:	RS-25
+Problem:	1
+Source:	R1highT
+Fraction:	mass
+Iter:	2
+Ranged:	pressure_atmo
+Index:	0
+Indicator:	specificImpulse
+pressure_injection:	20642903.3263	20642903.3263
+temperature_injection:	80	80
+contractionRatio:	2.5	2.5
+temperature_chamber_max:	4000	4000
+temperature_throat_max:	4000	4000
+heatMass:	0	0
+expansionRatio:	69	69
+separationTolerance:	0	0
+pressure_atmo:	0	101325
+thrust:	1859356.6372	1859356.6372
+Props:	2
+LOX	6.03	1
+LH2	1	1

@@ -1,0 +1,21 @@
+Name:	RL10A-4-1
+Problem:	1
+Source:	R1highT
+Fraction:	mass
+Iter:	2
+Ranged:	pressure_atmo
+Index:	0
+Indicator:	specificImpulse
+pressure_injection:	4205801.9469	4205801.9469
+temperature_injection:	80	80
+contractionRatio:	2.5	2.5
+temperature_chamber_max:	4000	4000
+temperature_throat_max:	4000	4000
+heatMass:	0	0
+expansionRatio:	84	84
+separationTolerance:	0	0
+pressure_atmo:	0	101325
+thrust:	99195.3421	99195.3421
+Props:	2
+LOX	5.5	1
+LH2	1	1

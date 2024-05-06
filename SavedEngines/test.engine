@@ -1,0 +1,24 @@
+Name:	test
+Problem:	1
+Source:	R1highT
+Fraction:	mass
+Iter:	2
+Ranged:	ratios
+Index:	1
+Indicator:	specificImpulse
+pressure_injection:	20640000	20640000
+temperature_injection:	50	50
+contractionRatio:	2.5	2.5
+temperature_chamber_max:	4000	4000
+temperature_throat_max:	4000	4000
+heatMass:	0	0
+expansionRatio:	77.5	77.5
+separationTolerance:	0.1	0.1
+pressure_atmo:	101325	0
+thrust:	1860000	1860000
+Props:	5
+LOX	6.03	4
+LH2	0.25	1
+LH2	0.25	1
+LH2	0.25	1
+LH2	0.25	1

@@ -9,24 +9,23 @@ classdef State
         temperature;
         pressure;
         density;
-        meanMolecularWeight;
         enthalpy;
         intEnergy;
         entropy;
         gibbs;
-        soundspeed;
-        massFractions;
-        molecularWeights;
+        totEnergy;
         velocity;
+        Mach;
+        soundspeed;
+        massFlowFlux;
+        areaRatio
         cp;
         cv;
         k;
-        totEnergy;
-        Mach;
         R_specific;
-        massFlowFlux;
-        areaRatio
+        meanMolecularWeight;
         hasCondensation;
+        massFractions;
     end
     methods (Access = public)
 
@@ -48,8 +47,7 @@ classdef State
                 state.gibbs = 0;
                 state.soundspeed = 0;
                 state.massFractions = 0;
-                state.molecularWeights = 0;
-                state.velocity;
+                state.velocity = 0;
                 state.cp = 0;
                 state.cv = 0;
                 state.k = 0;
@@ -71,18 +69,17 @@ classdef State
                 state.intEnergy = gas.intEnergy;
                 state.entropy = gas.entropy;
                 state.gibbs = gas.gibbs;
-                state.soundspeed = gas.soundspeed;
-                state.massFractions = gas.massFractions;
-                state.molecularWeights = gas.molecularWeights;
+                state.totEnergy = gas.totEnergy;
                 state.velocity = gas.velocity;
+                state.Mach = gas.Mach;
+                state.soundspeed = gas.soundspeed;
+                state.massFlowFlux = gas.massFlowFlux;
+                state.areaRatio = gas.areaRatio;
                 state.cp = gas.cp;
                 state.cv = gas.cv;
                 state.k = gas.k;
-                state.totEnergy = gas.totEnergy;
-                state.Mach = gas.Mach;
                 state.R_specific = gas.R_specific;
-                state.massFlowFlux = gas.massFlowFlux;
-                state.areaRatio = gas.areaRatio;
+                state.massFractions = gas.massFractions;
                 state.hasCondensation = gas.hasCondensation;
             end
         end

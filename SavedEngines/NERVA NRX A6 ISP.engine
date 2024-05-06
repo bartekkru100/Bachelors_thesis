@@ -1,0 +1,20 @@
+Name:	NERVA NRX A6 ISP
+Problem:	1
+Source:	R1highT
+Fraction:	mass
+Iter:	2
+Ranged:	pressure_atmo
+Index:	0
+Indicator:	specificImpulse
+pressure_injection:	4151000	4151000
+temperature_injection:	20	20
+contractionRatio:	2.5	2.5
+temperature_chamber_max:	4000	4000
+temperature_throat_max:	4000	4000
+heatMass:	38475700	38475700
+expansionRatio:	10	77.5
+separationTolerance:	0	0
+pressure_atmo:	0	101325
+thrust:	260069.416	260069.416
+Props:	1
+LH2	1	1

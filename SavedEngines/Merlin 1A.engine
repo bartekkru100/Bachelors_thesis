@@ -1,0 +1,21 @@
+Name:	Merlin 1A
+Problem:	1
+Source:	R1highT
+Fraction:	mass
+Iter:	2
+Ranged:	pressure_atmo
+Index:	0
+Indicator:	specificImpulse
+pressure_injection:	5391700.2008	5391700.2008
+temperature_injection:	100	100
+contractionRatio:	2.5	2.5
+temperature_chamber_max:	4000	4000
+temperature_throat_max:	4000	4000
+heatMass:	0	0
+expansionRatio:	14.5	14.5
+separationTolerance:	0	0
+pressure_atmo:	0	101325
+thrust:	324720.1783	324720.1783
+Props:	2
+LOX	2.2	1
+RP-1	1	1

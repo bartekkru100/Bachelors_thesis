@@ -70,6 +70,10 @@ classdef Gas < handle
 % Names should be self explanatory, if not then please check the
 % Cantera documentation page.
 
+        function value = src(gas)
+            value = gas.source;
+        end
+
         function value = temperature(gas)
             value = temperature(gas.solution);
         end
@@ -98,49 +102,24 @@ classdef Gas < handle
             value = entropy_mass(gas.solution);
         end
 
-        function value = totEnergy(gas)
-            value = enthalpy_mass(gas.solution) + gas.vel ^ 2 / 2;
-        end
-
         function value = gibbs(gas)
             value = gibbs_mass(gas.solution);
         end
 
-        function value = soundspeed(gas)
-            value = soundspeed(gas.solution);
-        end
-
-        function value = massFractions(gas)
-            value = massFractions(gas.solution);
-        end
-
-        function value = molecularWeights(gas)
-            value = molecularWeights(gas.solution);
+        function value = totEnergy(gas)
+            value = enthalpy_mass(gas.solution) + gas.vel ^ 2 / 2;
         end
 
         function value = velocity(gas)
             value = gas.vel;
         end
 
-        function value = k(gas)
-            value = cp_mass(gas.solution)/cv_mass(gas.solution);
-        end
-
-        function value = cp(gas)
-            value = cp_mass(gas.solution);
-        end
-
-        function value = cv(gas)
-            value = cv_mass(gas.solution);
-        end
-
         function value = Mach(gas)
             value = gas.vel/soundspeed(gas.solution);
         end
 
-        function value = R_specific(gas)
-            import Gas.*
-            value = R_universal / meanMolecularWeight(gas.solution);
+        function value = soundspeed(gas)
+            value = soundspeed(gas.solution);
         end
 
         function value = massFlowFlux(gas)
@@ -157,12 +136,41 @@ classdef Gas < handle
             end
         end
 
+        function value = cp(gas)
+            value = cp_mass(gas.solution);
+        end
+
+        function value = cv(gas)
+            value = cv_mass(gas.solution);
+        end
+
+        function value = k(gas)
+            value = cp_mass(gas.solution)/cv_mass(gas.solution);
+        end
+
+        function value = R_specific(gas)
+            import Gas.*
+            value = R_universal / meanMolecularWeight(gas.solution);
+        end
+
         function value = speciesNames(gas)
             value = convertCharsToStrings(speciesNames(gas.solution));
         end
 
-        function value = src(gas)
-            value = gas.source;
+        function value = massFractions(gas)
+            value = massFractions(gas.solution);
+        end
+
+        function value = moleFractions(gas)
+            value = moleFractions(gas.solution);
+        end
+
+        function value = molecularWeights(gas)
+            value = molecularWeights(gas.solution);
+        end
+
+        function value = chemPotentials(gas)
+            value = chemPotentials(gas.solution);
         end
 
 %==========================================================================
@@ -194,7 +202,36 @@ classdef Gas < handle
 
             tolerance = 1e-9;
 
-            equilibrate(gas.solution, 'HP', 1);
+            try
+                equilibrate(gas.solution, 'HP', 1);
+            catch
+                % Immidiately catches negative and NaN values of pressure
+                hasError = true;
+                n = 3;
+                set(gas.solution, 'T', 273, 'P', state_1.pressure);
+                enthalpy_intermediate = gas.enthalpy;
+                while hasError
+                    hasError = false;
+                    set(gas.solution, 'T', 273, 'P', state_1.pressure);
+                    equilibrate(gas.solution, 'HP', 1);
+                    try
+                        % Increments are logarithmic in scale
+                        enthalpyArray = linspace(enthalpy_intermediate, state_1.enthalpy, n);
+                        for enthalpy = enthalpyArray(2:end)
+                            set(gas.solution, 'H', enthalpy, 'P', state_1.pressure);
+                            equilibrate(gas.solution, 'HP', 1);
+                        end
+                    catch
+                        n = n + 1;
+                        if n > 10
+                            global solverError;
+                            solverError = "ERROR: Can't reach equilibrium.";
+                            error("Can't reach equilibrium.")
+                        end
+                        hasError = true;
+                    end
+                end
+            end
 
             s_equilibrium = State(gas);
 
@@ -357,16 +394,21 @@ classdef Gas < handle
             end
 
             state_1 = State(gas);
-            pressure = 1;
-            while 1
-                try
-                    setpressureisentropic(gas, pressure);
-                    s_maxVelocity = State(gas);
-                    pressure = pressure / 10;
-                catch
-                    break;
-                end
-            end
+            setpressureisentropic(gas, 1e-10);
+            s_maxVelocity = State(gas);
+            % s_maxVelocity = State(gas);
+            % pressure = 1;
+            % while 1
+            %     try
+            %         setpressureisentropic(gas, 0);
+            %         s_maxVelocity = State(gas);
+            %         pressure = pressure / 10;
+            %     catch
+            %         global solverError
+            %         solverError = "ERROR: Unknown error";
+            %         break;
+            %     end
+            % end
             
             gas.s_maxVelocity = s_maxVelocity;
 
@@ -379,16 +421,6 @@ classdef Gas < handle
             else
                 error("revert needs to take a logical value.");
             end
-        end
-    end
-
-%==========================================================================
-
-    % WIP This imports phase diagrams from files
-
-    methods (Access = private)
-        function importphasediagram(gas)
-            gas.phaseDiagrams
         end
     end
 
@@ -407,9 +439,13 @@ classdef Gas < handle
         % Combines 2 or more Gas objects using the same source file into
         % one
 
-        function combined = combine(combined, gasArray, ratio, mass_mole)
+        function combined = combine(combined, gasArray, ratio, mass_mole, onlyComposition)
             import Gas.*
 
+            if nargin < 5
+                combined = combine(combined, gasArray, ratio, mass_mole, true);
+                return;
+            end
             if combined == lower('new')
             combined = Gas(gasArray(1));
             end
@@ -419,32 +455,42 @@ classdef Gas < handle
                 end
             end
 
-            if nargin == 4
-                if mass_mole == convertCharsToStrings(lower("mass"))
-                    ratio = ratio ./ arrayfun(@(gas) gas.meanMolecularWeight, gasArray);
-                elseif mass_mole == convertCharsToStrings(lower("mole"))
-                else
-                    error("3rd argument needs to be either be ""mass"" or ""mole""");
-                end
+            if mass_mole == convertCharsToStrings(lower("mass"))
+                ratio = ratio ./ arrayfun(@(gas) gas.meanMolecularWeight, gasArray);
+            elseif mass_mole == convertCharsToStrings(lower("mole"))
+            else
+                error("3rd argument needs to be either be ""mass"" or ""mole""");
             end
+
             ratio_denominator = sum(ratio);
 
-            pressure_partial = arrayfun(@(gas) gas.pressure, gasArray) .* ratio  / ratio_denominator;
-            pressure_total = sum(pressure_partial);
+            if ~onlyComposition
+                pressure_partial = arrayfun(@(gas) gas.pressure, gasArray) .* ratio  / ratio_denominator;
+                pressure_total = sum(pressure_partial);
 
-            intEnergy_partial = arrayfun(@(gas) gas.intEnergy, gasArray) .* pressure_partial / pressure_total;
-            intEnergy_total = sum(intEnergy_partial);
+                intEnergy_partial = arrayfun(@(gas) gas.intEnergy, gasArray) .* pressure_partial / pressure_total;
+                intEnergy_total = sum(intEnergy_partial);
 
-            massFractions_partial = arrayfun(@(gas) {gas.massFractions * gas.meanMolecularWeight}, gasArray);
-            massFractions_partial = cell2mat(massFractions_partial);
-            massFractions_partial = massFractions_partial .* (pressure_partial / pressure_total);
-            massFractions_total = sum(massFractions_partial, 2);
+                massFractions_partial = arrayfun(@(gas) {gas.massFractions * gas.meanMolecularWeight}, gasArray);
+                massFractions_partial = cell2mat(massFractions_partial);
+                massFractions_partial = massFractions_partial .* (pressure_partial / pressure_total);
+                massFractions_total = sum(massFractions_partial, 2);
 
-            density_partial = arrayfun(@(gas) gas.density, gasArray) .* ratio  / ratio_denominator;
-            density_total = sum(density_partial);
-            velocity_partial = arrayfun(@(gas) (gas.density * gas.velocity), gasArray) .* ratio  / ratio_denominator;
-            velocity_total = sum(velocity_partial);
-            setstate(combined, 'Rho', density_total, 'P', pressure_total, 'Y', massFractions_total, 'velocity', velocity_total);
+                density_partial = arrayfun(@(gas) gas.density, gasArray) .* ratio  / ratio_denominator;
+                density_total = sum(density_partial);
+                velocity_partial = arrayfun(@(gas) (gas.density * gas.velocity), gasArray) .* ratio  / ratio_denominator;
+                velocity_total = sum(velocity_partial);
+                setstate(combined, 'Rho', density_total, 'P', pressure_total, 'Y', massFractions_total, 'velocity', velocity_total);
+            else
+                pressure = combined.pressure;
+                temperature = combined.temperature;
+                velocity = 0;
+                massFractions_partial = arrayfun(@(gas) {gas.massFractions * gas.meanMolecularWeight}, gasArray);
+                massFractions_partial = cell2mat(massFractions_partial);
+                massFractions_partial = massFractions_partial .* ratio  / ratio_denominator;
+                massFractions_total = sum(massFractions_partial, 2);
+                setstate(combined, 'T', temperature, 'P', pressure, 'Y', massFractions_total, 'velocity', velocity);
+            end
         end
 
 %==========================================================================
@@ -455,11 +501,9 @@ classdef Gas < handle
         function gas = setstate(gas, property1, value1, property2, value2, property3, value3, property4, value4)
             import State.*
             import Gas.*
-
             % If one of the arguments is a State or Gas object, it copies
             % the mass fractions, temperature, pressure and velocity
             % automatically
-
             if ismember(class(property1), ['Gas', 'State'])
                 state = property1;
                 set(gas.solution, 'Y', state.massFractions, 'T', state.temperature, 'P', state.pressure);
@@ -504,22 +548,28 @@ classdef Gas < handle
 
                 if ismember('velocity', propertyArr)
                     index = find(strcmp('velocity', propertyArr));
-                    gas.vel = cell2mat(valueArr(index));
-                    valueArr(index) = [];
+                    gas.vel = valueArr{index};
+                    valueArr{index} = [];
                     propertyArr(index) = [];
                     n = n - 1;
+                end
+                if ismember('P', propertyArr)
+                    index = find(strcmp('P', propertyArr));
+                    if valueArr{index} <= 0
+                        valueArr{index} = 1e-6;
+                    end
                 end
 
                 % Values are fed into Cantera's Set() function.
 
                 if n == 1
-                    set(gas.solution, cell2mat(propertyArr(1)), cell2mat(valueArr(1)));
+                    set(gas.solution, propertyArr{1}, valueArr{1});
                 elseif n == 2
-                    set(gas.solution, cell2mat(propertyArr(1)), cell2mat(valueArr(1)), cell2mat(propertyArr(2)), cell2mat(valueArr(2)));
+                    set(gas.solution, propertyArr{1}, valueArr{1}, propertyArr{2}, valueArr{2});
                 elseif n == 3
-                    set(gas.solution, cell2mat(propertyArr(1)), cell2mat(valueArr(1)), cell2mat(propertyArr(2)), cell2mat(valueArr(2)), cell2mat(propertyArr(3)), cell2mat(valueArr(3)));
+                    set(gas.solution, propertyArr{1}, valueArr{1}, propertyArr{2}, valueArr{2}, propertyArr{3}, valueArr{3});
                 elseif n == 4
-                    set(gas.solution, cell2mat(propertyArr(1)), cell2mat(valueArr(1)), cell2mat(propertyArr(2)), cell2mat(valueArr(2)), cell2mat(propertyArr(3)), cell2mat(valueArr(3)), cell2mat(propertyArr(4)), cell2mat(valueArr(4)));
+                    set(gas.solution, propertyArr{1}, valueArr{1}, propertyArr{2}, valueArr{2}, propertyArr{3}, valueArr{3}, propertyArr{4}, valueArr{4});
                 end
             end
         end
@@ -684,15 +734,15 @@ classdef Gas < handle
             gas.vel = sqrt(2 * (state_1.totEnergy - gas.enthalpy));
         end
 
-%==========================================================================
-        
+        %==========================================================================
+
         % This function calculates the exit state assuming a completely supersonic
         % flow in the diverging part of the nozzle. Iterating over pressure to
         % satisfy mass conservation.
-    
+
         function gas = setarearatioisentropic(gas, areaRatio_2, sub_super)
             import Gas.*
-        
+
             s_sonic = gas.sonic;
             s_stagnation = gas.stagnation;
 
@@ -700,40 +750,58 @@ classdef Gas < handle
             tolerance = 1e-9;
             iterationLimit = 100;
             if sub_super == "sub"
-            % Point 1
-            pressure(1) = s_stagnation.pressure * (1 - 1 / areaRatio_2 ^ 2.3) + s_sonic.pressure * (1 / areaRatio_2 ^ 2.3);
-            error_M(1) = error_areaisentropic(gas, areaRatio_2, pressure(1));
-        
-            % Point 2
-            pressure(2) = s_stagnation.pressure * (1 - 1 / areaRatio_2 ^ 2.5) + s_sonic.pressure * (1 / areaRatio_2 ^ 2.5);
-            error_M(2) = error_areaisentropic(gas, areaRatio_2, pressure(2));
-        
-            % Point 3
-            pressure(3) = s_stagnation.pressure * (1 - 1 / areaRatio_2 ^ 2.7) + s_sonic.pressure * (1 / areaRatio_2 ^ 2.7);
-            error_M(3) = error_areaisentropic(gas, areaRatio_2, pressure(3));
-        
-            numericalMethod = MullersMethod("setsupersonicexitconditions", tolerance, iterationLimit, pressure, error_M, 'max');
-            numericalMethod.setX_min_max(s_sonic.pressure, s_stagnation.pressure);
-        
+                % Point 1
+                delta_area = areaRatio_2;
+                b = (0.3978 / delta_area ^ 1.2975);
+                a = (delta_area - 1) ^ 0.6555;
+                pressure(1) = (a * s_stagnation.pressure + b * s_sonic.pressure) / (a + b);
+                error_M(1) = error_areaisentropic(gas, areaRatio_2, pressure(1));
+                error_abs = areaRatio_2 - gas.areaRatio;
+
+                % Point 2
+                delta_area = delta_area + error_abs;
+                b = (0.3978 / delta_area ^ 1.2975);
+                a = (delta_area - 1) ^ 0.6555;
+                pressure(2) = (a * s_stagnation.pressure + b * s_sonic.pressure) / (a + b);
+                error_M(2) = error_areaisentropic(gas, areaRatio_2, pressure(2));
+                error_abs = areaRatio_2 - gas.areaRatio;
+
+                % Point 3
+                delta_area = delta_area + error_abs;
+                b = (0.3978 / delta_area ^ 1.2975);
+                a = (delta_area - 1) ^ 0.6555;
+                pressure(3) = (a * s_stagnation.pressure + b * s_sonic.pressure) / (a + b);
+                error_M(3) = error_areaisentropic(gas, areaRatio_2, pressure(3));
+
+                numericalMethod = MullersMethod("setsubsonicconditions", tolerance, iterationLimit, pressure, error_M, 'max');
+                numericalMethod.setX_min_max(s_sonic.pressure, s_stagnation.pressure);
+
             else
-            % Point 1
-            pressure(1) = s_sonic.pressure * (1 / areaRatio_2 ^ 1.8);
-            error_M(1) = error_areaisentropic(gas, areaRatio_2, pressure(1));
-        
-            % Point 2
-            pressure(2) = s_sonic.pressure * (1 / areaRatio_2 ^ 2);
-            error_M(2) = error_areaisentropic(gas, areaRatio_2, pressure(2));
-        
-            % Point 3
-            pressure(3) = s_sonic.pressure * (1 / areaRatio_2 ^ 2.2);
-            error_M(3) = error_areaisentropic(gas, areaRatio_2, pressure(3));
-        
-            numericalMethod = MullersMethod("setsupersonicexitconditions", tolerance, iterationLimit, pressure, error_M, 'min');
-            numericalMethod.setX_min_max(0, s_sonic.pressure);
+                a = 0.55;
+                b = 2.2;
+                % Point 1
+                delta_area = areaRatio_2;
+                pressure(1) = s_sonic.pressure / (1 + a * (delta_area ^ (0.4 / (delta_area - 0.985)) - 1) + b * (delta_area ^ (1.13 * s_sonic.k) - 1));
+                error_M(1) = error_areaisentropic(gas, areaRatio_2, pressure(1));
+                error_abs = areaRatio_2 - gas.areaRatio;
+
+                % Point 2
+                delta_area = delta_area + error_abs;
+                pressure(2) = s_sonic.pressure / (1 + a * (delta_area ^ (0.4 / (delta_area - 0.985)) - 1) + b * (delta_area ^ (1.13 * s_sonic.k) - 1));
+                error_M(2) = error_areaisentropic(gas, areaRatio_2, pressure(2));
+                error_abs = areaRatio_2 - gas.areaRatio;
+
+                % Point 3
+                delta_area = delta_area + error_abs;
+                pressure(3) = s_sonic.pressure / (1 + a * (delta_area ^ (0.4 / (delta_area - 0.985)) - 1) + b * (delta_area ^ (1.13 * s_sonic.k) - 1));
+                error_M(3) = error_areaisentropic(gas, areaRatio_2, pressure(3));
+
+                numericalMethod = MullersMethod("setsupersonicconditions", tolerance, iterationLimit, pressure, error_M, 'min');
+                numericalMethod.setX_min_max(0, s_sonic.pressure);
             end
             while 1
                 pressure = numericalMethod.findnewX;
-        
+
                 error_M = error_areaisentropic(gas, areaRatio_2, pressure);
         
                 numericalMethod.updateXY(pressure, error_M);
@@ -775,7 +843,7 @@ classdef Gas < handle
                 set(gas.solution, 'P', pressure_2, 'S', gas.entropy);
             catch
                 % Immidiately catches negative and NaN values of pressure
-                if pressure_2 <= 0
+                if pressure_2 < 0
                     error("Pressure must be positive.")
                 elseif isnan(pressure_2)
                     error("Pressure must not be NaN.")
@@ -788,12 +856,17 @@ classdef Gas < handle
                     try
                         % Increments are logarithmic in scale
                         for pressure = logspace(log10(state_1.pressure), log10(pressure_2), n)
-                            set(gas.solution, 'P', pressure, 'S', gas.entropy);
+                            set(gas.solution, 'P', pressure, 'S', state_1.entropy);
+                            pressure_lowest = gas.pressure;
                         end
                     catch
                         n = n * 2;
                         if n > 64
-                            error("Can't calculate isentropic pressure.")
+                            set(gas.solution, 'P', pressure_lowest, 'S', state_1.entropy)
+                            return
+                            % global solverError;
+                            % solverError = "ERROR: Can't set isentropic pressure, target pressure too low";
+                            % error("Can't calculate isentropic pressure.")
                         end
                         hasError = true;
                     end
@@ -819,7 +892,7 @@ classdef Gas < handle
             import Gas.*
 
             set(gas.solution, 'T', state_1.temperature, 'P', state_1.pressure);
-            setpressureisentropic_still(gas, pressure, state_1.pressure);
+            setpressureisentropic_still(gas, pressure, state_1);
             error_H = (enthalpy_2 - gas.enthalpy) / enthalpy_2;
         end
 
@@ -836,7 +909,7 @@ classdef Gas < handle
             setpressureisentropic(gas, pressure, gas.s_sonic);
 
             massFlowFlux_calc = areaRatio_2 * gas.massFlowFlux;
-            error_M = (massFlowFlux_calc - gas.s_sonic.massFlowFlux) / massFlowFlux_calc;
+            error_M = (gas.s_sonic.massFlowFlux - massFlowFlux_calc) / gas.s_sonic.massFlowFlux;
         end
 
     end

@@ -28,6 +28,10 @@ classdef Enum
             value = this.values;
         end
 
+        function name = name(this)
+            name = this.names;
+        end
+
         function value = fromstr(this, str)
             str = convertCharsToStrings(str);
             value = this.values.(str);

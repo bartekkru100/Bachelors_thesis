@@ -1,0 +1,21 @@
+Name:	TQ-12
+Problem:	1
+Source:	gri30
+Fraction:	mass
+Iter:	2
+Ranged:	pressure_atmo
+Index:	0
+Indicator:	specificImpulse
+pressure_injection:	10100000	10100000
+temperature_injection:	90	90
+contractionRatio:	2.5	2.5
+temperature_chamber_max:	4000	4000
+temperature_throat_max:	4000	4000
+heatMass:	0	0
+expansionRatio:	45	45
+separationTolerance:	0	0
+pressure_atmo:	101325	0
+thrust:	784800	784800
+Props:	2
+LOX	2.92	1
+LCH4	1	1

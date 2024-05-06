@@ -1,0 +1,20 @@
+Name:	FAKEL K10K N2 43.7kPa 8W
+Problem:	1
+Source:	R1highT
+Fraction:	mass
+Iter:	2
+Ranged:	pressure_atmo
+Index:	0
+Indicator:	specificImpulse
+pressure_injection:	43700	43700
+temperature_injection:	288.15	288.15
+contractionRatio:	2.5	2.5
+temperature_chamber_max:	4000	4000
+temperature_throat_max:	4000	4000
+heatMass:	381000	381000
+expansionRatio:	100	100
+separationTolerance:	0	0
+pressure_atmo:	0	0.066661
+thrust:	0.0173	0.0173
+Props:	1
+LN2	1	1
