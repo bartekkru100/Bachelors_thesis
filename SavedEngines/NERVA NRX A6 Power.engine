@@ -3,7 +3,7 @@ Problem:	1
 Source:	R1highT
 Fraction:	mass
 Iter:	10
-Ranged:	pressure_atmo
+Ranged:	none
 Index:	0
 Indicator:	specificImpulse
 pressure_injection:	4151000	4151000
@@ -11,7 +11,7 @@ temperature_injection:	20	20
 contractionRatio:	2.5	2.5
 temperature_chamber_max:	4000	4000
 temperature_throat_max:	4000	4000
-heatMass:	35257000	35257000
+heatMass:	35252000	35260000
 expansionRatio:	10	77.5
 separationTolerance:	0	0
 pressure_atmo:	0	101325

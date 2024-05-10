@@ -31,7 +31,7 @@ while 1
     error_Mach = error_separation(gas, pressure, s_throat, s_atmo, separationTolerance);
 
     numericalMethod.updateXY(pressure, error_Mach);
-    if numericalMethod.checkconvergence;
+    if numericalMethod.checkconvergence
         break;
     end
 end

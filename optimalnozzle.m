@@ -9,10 +9,11 @@ s_injection.pressure = solverInputs.pressure_injection;
 s_injection.temperature = solverInputs.temperature_injection;
 ratios = solverInputs.ratios;
 atmo = solverInputs.atmo;
-expansionRatio = solverInputs.expansionRatio;
+
 contractionRatio = solverInputs.contractionRatio;
 heatMass = solverInputs.heatMass;
 thrust = solverInputs.thrust;
+
 
 separationTolerance = solverInputs.separationTolerance;
 mass_mole = solverInputs.mass_mole;
@@ -21,7 +22,7 @@ setstate(gas, 'P', s_injection.pressure, 'T', s_injection.temperature);
 gas = combine(gas, propellantArray, ratios, mass_mole);
 
 s_injection = State(gas);
-setchamberconditions(gas, heatMass);
+setchamberconditions(gas, contractionRatio, heatMass);
 s_chamber = State(gas);
 s_throat = gas.sonic;
 
@@ -34,8 +35,6 @@ setstate(gas, s_throat);
 expansionRatio_condensation = findcondensation(gas);
 setstate(gas, s_throat);
 expansionRatio_optimal = findidealexpansion(gas, atmo);
-
-
 [expansionRatio_shockAtExit_1, shockFound] = findshockatexit(gas, atmo, 'min');
 if atmo.pressure > s_stagnation.pressure
     flowState = "Stagation pressure below ambient, flow impossible";
@@ -50,18 +49,15 @@ elseif atmo.pressure > s_throat.pressure
         setstate(gas, s_throat);
         expansionRatio_shockAtExit_2 = findshockatexit(gas, atmo, 'max');
         expansionRatio_separation = 1;
-        expansionRatio_shockAtThroat = expansionRatio_optimal;
-
-        [s_exit, s_throat, s_chamber] = setsubsonicexitconditions(gas, atmo, expansionRatio_optimal, contractionRatio);
     else
         flowState = "Throat pressure below ambient, optimal nozzle subsonic, fully supersonic flow impossible";
 
-        expansionRatio_shockAtThroat = expansionRatio_optimal;
         expansionRatio_shockAtExit_1 = [];
 
         setstate(gas, s_throat);
-        [s_exit, s_throat, s_chamber] = setsubsonicexitconditions(gas, atmo, expansionRatio_optimal, contractionRatio);
     end
+    expansionRatio_shockAtThroat = expansionRatio_optimal;
+    [s_exit, s_throat, s_chamber] = setsubsonicexitconditions(gas, atmo, expansionRatio_optimal, contractionRatio);
 else
     flowState = "Optimal nozzle supersonic";
 

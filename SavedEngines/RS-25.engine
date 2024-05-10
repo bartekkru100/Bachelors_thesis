@@ -17,5 +17,5 @@ separationTolerance:	0	0
 pressure_atmo:	0	101325
 thrust:	1859356.6372	1859356.6372
 Props:	2
-LOX	6.03	1
+LOX	6	1
 LH2	1	1

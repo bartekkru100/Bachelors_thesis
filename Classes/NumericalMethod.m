@@ -147,10 +147,11 @@ classdef NumericalMethod < handle
                     this.X_0 = (3 * this.X_max + this.X_min) / 4;
                 end
             elseif isnan(this.X_0)
-                %this.X_0 = this.X_0_old;
                 this.X_0 = mean(this.X);
-                %this.hasFailed = true;
-                %this.shouldBreak = true;
+            % elseif isinf(this.X_0)
+            %     this.X_0 = mean(this.X);
+            % elseif this.X_0 == this.X_0_old
+            %     this.X_0 = mean(this.X);
             end
             X_0 = this.X_0;
         end

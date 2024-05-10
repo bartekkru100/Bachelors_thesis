@@ -14,11 +14,13 @@ contractionRatio = solverInputs.contractionRatio;
 heatMass = solverInputs.heatMass;
 thrust = solverInputs.thrust;
 
+
 separationTolerance = solverInputs.separationTolerance;
 mass_mole = solverInputs.mass_mole;
 
 setstate(gas, 'P', s_injection.pressure, 'T', s_injection.temperature);
 gas = combine(gas, propellantArray, ratios, mass_mole);
+
 s_injection = State(gas);
 setchamberconditions(gas, contractionRatio, heatMass);
 s_chamber = State(gas);

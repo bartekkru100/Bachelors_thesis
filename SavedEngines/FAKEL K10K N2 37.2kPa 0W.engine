@@ -7,7 +7,7 @@ Ranged:	pressure_atmo
 Index:	0
 Indicator:	specificImpulse
 pressure_injection:	37200	37200
-temperature_injection:	288.15	288.15
+temperature_injection:	293.15	288.15
 contractionRatio:	2.5	2.5
 temperature_chamber_max:	4000	4000
 temperature_throat_max:	4000	4000
