@@ -694,6 +694,7 @@ classdef Gas < handle
                     break;
                 end
                 error_H_abs = enthalpy_2 - gas.enthalpy;
+            
             end
 
 %--------------------------------------------------------------------------

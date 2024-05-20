@@ -25,7 +25,7 @@ error_M(1) = error_exit(gas, pressure(1), s_throat, s_supersonicExit);
 pressure(2) = s_supersonicExit.pressure * (2 * s_throat.k * s_supersonicExit.Mach ^ 2 - (s_throat.k - 1)) / (s_throat.k + 1);
 error_M(2) = error_exit(gas, pressure(2), s_throat, s_supersonicExit);
 
-% Point 1
+% Point 3
 pressure(3) = s_supersonicExit.pressure * (2 * s_maxVelocity.k * s_supersonicExit.Mach ^ 2 - (s_maxVelocity.k - 1)) / (s_maxVelocity.k + 1);
 error_M(3) = error_exit(gas, pressure(3), s_throat, s_supersonicExit);
 
