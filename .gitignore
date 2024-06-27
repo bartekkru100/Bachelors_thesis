@@ -1,2 +1,7 @@
 *.asv
+*.prj
+.gitignore
 sloc.m
+Scripts
+Cantera
+RocketApp

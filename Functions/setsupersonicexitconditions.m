@@ -10,6 +10,6 @@ import Gas.*
 %--------------------------------------------------------------------------
 
 % Output
-setarearatioisentropic(gas, expansionRatio, "super")
+setarearatioisentropic(gas, expansionRatio, "super");
 s_supersonicExit = State(gas);
 end
