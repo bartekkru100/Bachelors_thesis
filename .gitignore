@@ -1,5 +1,6 @@
 *.asv
 *.prj
+*.lnk
 .gitignore
 sloc.m
 Scripts
